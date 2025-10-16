@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "title": "Her",
+    "releaseYear": 2013,
+    "runtimeMinutes": 126,
+    "overview": "A lonely writer develops an unexpected connection with an advanced operating system, forcing him to reconsider what intimacy and companionship can look like in a near-future Los Angeles.",
+    "posterUrl": "https://image.tmdb.org/t/p/w500/yk4J4aewWYNiBhD49WD7UaBBn37.jpg"
+  },
+  {
+    "id": 2,
+    "title": "The Farewell",
+    "releaseYear": 2019,
+    "runtimeMinutes": 100,
+    "overview": "A Chinese-American writer returns to Changchun when the family stages an impromptu wedding as a cover for spending time with their terminally ill matriarch, blending cultures, grief, and joy.",
+    "posterUrl": "https://image.tmdb.org/t/p/w500/7J4iXQ9mZQmbhSQtFvGoG9U0ZRR.jpg"
+  },
+  {
+    "id": 3,
+    "title": "Arrival",
+    "releaseYear": 2016,
+    "runtimeMinutes": 116,
+    "overview": "When twelve mysterious spacecraft appear across the globe, a linguist is recruited by the military to communicate with the extraterrestrial visitors before global tensions boil over.",
+    "posterUrl": "https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg"
+  },
+  {
+    "id": 4,
+    "title": "Portrait of a Lady on Fire",
+    "releaseYear": 2019,
+    "runtimeMinutes": 122,
+    "overview": "An artist is commissioned to paint the wedding portrait of a reluctant bride-to-be, leading to a tender romance on the remote shores of 18th-century Brittany.",
+    "posterUrl": "https://image.tmdb.org/t/p/w500/4DbOhYtIhJMWrj24zUtPLnJzXWR.jpg"
+  }
+]
