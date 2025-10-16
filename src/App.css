@@ -183,9 +183,11 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 30px;
 }
 
 .movie-details h2 {
+  font-family: Protest Strike;
   margin: 0;
   font-size: 1.4rem;
   letter-spacing: 0.08em;
