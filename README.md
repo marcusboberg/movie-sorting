@@ -8,10 +8,9 @@ A Vite + React experience for browsing a curated stack of films and quickly givi
    ```bash
    npm install
    ```
-2. Copy the sample environment file and add your TMDB API token. Use a **v4 API Read Access Token** so requests can be authorized with the `Authorization: Bearer` header.
+2. Create a `.env` file and add your TMDB API token. Use a **v4 API Read Access Token** so requests can be authorized with the `Authorization: Bearer` header.
    ```bash
-   cp .env.example .env
-   # then open .env and paste your TMDB v4 read token
+   echo "VITE_TMDB_API_KEY=YOUR_TMDB_V4_READ_TOKEN" > .env
    ```
 3. Start the development server
    ```bash
@@ -25,24 +24,6 @@ npm run build
 ```
 
 The compiled site is emitted to `dist/` and is ready to be uploaded to any static web host.
-
-## Deploying to movies.marcusboberg.se with GitHub Pages
-
-The repository ships with a GitHub Actions workflow that builds the site and publishes it to GitHub Pages, keeping the custom
-domain `movies.marcusboberg.se` online without any manual uploads.
-
-1. **Expose the TMDB token to the build** – in the repository settings, create an Actions secret named `VITE_TMDB_API_KEY` and
-   paste your TMDB v4 read access token as the value. The workflow injects this secret during `npm run build` so API calls keep
-   working in production.
-2. **Enable GitHub Pages** – in _Settings → Pages_, choose "GitHub Actions" as the deployment source. The workflow in
-   [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) will now be allowed to publish.
-3. **Commit and push** – any push to `main` (or a manual workflow dispatch) runs the build and deploys the contents of `dist/`
-   to the GitHub Pages environment.
-4. **Custom domain** – the file [`public/CNAME`](public/CNAME) is bundled automatically so GitHub Pages keeps
-   `movies.marcusboberg.se` configured. Confirm that your DNS provider has a CNAME record pointing the `movies` subdomain to
-   `YOUR_GITHUB_USERNAME.github.io`. GitHub will provision the TLS certificate after the first deployment.
-
-Once configured, the site will refresh automatically after each merge to `main`.
 
 ## Deploying to movies.marcusboberg.se (one.com)
 
