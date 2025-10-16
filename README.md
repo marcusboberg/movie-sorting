@@ -23,6 +23,47 @@ A Vite + React experience for browsing a curated stack of films and quickly givi
 npm run build
 ```
 
+The compiled site is emitted to `dist/` and is ready to be uploaded to any static web host.
+
+## Deploying to movies.marcusboberg.se (one.com)
+
+1. **Build locally** – run `npm run build` so the latest changes are written to `dist/`.
+2. **Prepare the upload folder** – inside `dist/`, ensure you have the following structure:
+   ```
+   dist/
+     index.html
+     assets/
+       ...generated css/js/image assets
+   ```
+   Everything inside `dist/` needs to be published to one.com.
+3. **Create the subdomain** – in the [one.com control panel](https://www.one.com/admin/), add the `movies` subdomain for `marcusboberg.se` and point it to a new folder (for example `movies`) under your web space. One.com will create the folder automatically if it does not exist.
+4. **Upload the build** – connect via SFTP or the one.com file manager and upload the contents of `dist/` into the folder that serves `movies.marcusboberg.se` (e.g. `/movies`). Make sure `index.html` lives directly inside that folder, not nested in an extra subdirectory.
+5. **Set the TMDB token** – create a `.env` file locally before building so the token gets inlined into the build. Because this is a static site, no server configuration is required on one.com once the compiled files are uploaded.
+6. **Verify DNS** – if the subdomain is new, confirm that the `movies` DNS record exists in one.com's DNS panel. By default one.com creates an `A` record that points to their web hotel. After propagation (can take up to an hour), browsing to `https://movies.marcusboberg.se` should load the React app.
+
+### Optional: automate uploads from your terminal
+
+Create an SFTP configuration for one.com (replace the placeholders with your credentials) and save it as `~/.ssh/config`:
+
+```
+Host onecom
+  HostName ssh.one.com
+  User your-account@example.com
+```
+
+Then run the following from the project root whenever you need to deploy:
+
+```bash
+npm run build
+sftp onecom <<'SFTP'
+cd movies
+lcd dist
+put -r *
+SFTP
+```
+
+This will upload only the freshly built assets to the `movies` folder on one.com.
+
 ## Data sources
 
 - Film identifiers live in [`src/movies.json`](src/movies.json).
