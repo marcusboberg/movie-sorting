@@ -1,10 +1,42 @@
-import { useState } from 'react';
-import movies from './movies.json';
+import { useMemo, useState } from 'react';
+import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingSlider from './components/RatingSlider.jsx';
 import './App.css';
 
+function normalizeMovie(movie, index) {
+  const fallbackOrder = index + 1;
+  const order = Number.isFinite(movie?.order) ? movie.order : fallbackOrder;
+  const runtimeMinutes = Number.isFinite(movie?.runtime)
+    ? movie.runtime
+    : Number.isFinite(movie?.runtimeMinutes)
+      ? movie.runtimeMinutes
+      : null;
+  const releaseYear = movie?.year ?? movie?.releaseYear ?? '—';
+
+  return {
+    id: movie?.id ?? order ?? fallbackOrder,
+    order,
+    title: movie?.title ?? 'Untitled',
+    posterUrl: movie?.image ?? movie?.posterUrl ?? null,
+    runtimeMinutes,
+    releaseYear: releaseYear != null ? String(releaseYear) : '—',
+    overview: movie?.description ?? movie?.overview ?? '',
+  };
+}
+
 function App() {
+  const movies = useMemo(() => {
+    if (!Array.isArray(rawMovies)) {
+      return [];
+    }
+
+    return rawMovies
+      .filter(Boolean)
+      .map((movie, index) => normalizeMovie(movie, index))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map(({ order, ...movie }) => movie);
+  }, []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [ratings, setRatings] = useState(() =>
     movies.reduce((accumulator, movie) => {
@@ -17,10 +49,12 @@ function App() {
   const activeMovie = movies[currentIndex];
 
   const handlePrev = () => {
+    if (movies.length === 0) return;
     setCurrentIndex((previous) => (previous - 1 + movies.length) % movies.length);
   };
 
   const handleNext = () => {
+    if (movies.length === 0) return;
     setCurrentIndex((previous) => (previous + 1) % movies.length);
   };
 
