@@ -11,15 +11,19 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
-function MovieCard({ movie, details, posterUrl, loading, error }) {
+function MovieCard({ movie }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   if (!movie) {
     return null;
   }
 
-  const effectivePoster = posterUrl ?? placeholderPoster;
-  const backgroundImage = posterUrl ? `url(${posterUrl})` : undefined;
+  const posterUrl = movie.posterUrl ?? placeholderPoster;
+  const backgroundImage = movie.posterUrl ? `url(${movie.posterUrl})` : undefined;
+  const releaseYear = movie.releaseYear ?? '—';
+  const runtime = formatRuntime(movie.runtimeMinutes);
+  const overview =
+    movie.overview ?? 'Plot summary unavailable right now.';
 
   return (
     <div
@@ -33,21 +37,12 @@ function MovieCard({ movie, details, posterUrl, loading, error }) {
           onClick={() => setIsFlipped((value) => !value)}
         >
           <div className="movie-poster-shell">
-            {loading && (
-              <div className="movie-loader">
-                <span className="loader-dot" />
-                <span className="loader-dot" />
-                <span className="loader-dot" />
-              </div>
-            )}
-            {!loading && (
-              <img
-                src={effectivePoster}
-                alt={movie.title}
-                className="movie-poster"
-                loading="lazy"
-              />
-            )}
+            <img
+              src={posterUrl}
+              alt={movie.title}
+              className="movie-poster"
+              loading="lazy"
+            />
           </div>
         </button>
 
@@ -58,18 +53,13 @@ function MovieCard({ movie, details, posterUrl, loading, error }) {
         >
           <div className="movie-backdrop" />
           <div className="movie-details">
-            <h2>{details?.title ?? movie.title}</h2>
+            <h2>{movie.title}</h2>
             <p className="movie-meta">
-              <span>{details?.release_date ? details.release_date.slice(0, 4) : '—'}</span>
+              <span>{releaseYear}</span>
               <span aria-hidden="true">•</span>
-              <span>{formatRuntime(details?.runtime)}</span>
+              <span>{runtime}</span>
             </p>
-            {error && <p className="movie-error">{error}</p>}
-            {!error && (
-              <p className="movie-overview">
-                {details?.overview ?? 'Plot summary unavailable right now.'}
-              </p>
-            )}
+            <p className="movie-overview">{overview}</p>
           </div>
         </button>
       </div>
