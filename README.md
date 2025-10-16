@@ -8,10 +8,9 @@ A Vite + React experience for browsing a curated stack of films and quickly givi
    ```bash
    npm install
    ```
-2. Copy the sample environment file and add your TMDB API token. Use a **v4 API Read Access Token** so requests can be authorized with the `Authorization: Bearer` header.
+2. Create a `.env` file and add your TMDB API token. Use a **v4 API Read Access Token** so requests can be authorized with the `Authorization: Bearer` header.
    ```bash
-   cp .env.example .env
-   # then open .env and paste your TMDB v4 read token
+   echo "VITE_TMDB_API_KEY=YOUR_TMDB_V4_READ_TOKEN" > .env
    ```
 3. Start the development server
    ```bash
