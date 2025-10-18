@@ -85,37 +85,42 @@ function App() {
     }
   }, []);
 
-  const handlePointerDown = (event) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (event.target.closest('.rating-area') || !event.target.closest('.movie-card-wrapper')) {
-      return;
-    }
+  const shouldHandleGesture = (target) => {
+    if (!target) return false;
+    if (target.closest('.rating-area')) return false;
+    return Boolean(target.closest('.movie-card-wrapper'));
+  };
 
+  const beginGesture = (pointer) => {
     if (gestureState.phase === 'animating') {
       return;
     }
 
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    if (!shouldHandleGesture(pointer.target)) {
+      return;
+    }
+
+    pointer.currentTarget?.setPointerCapture?.(pointer.pointerId);
 
     setGestureState({
       phase: 'pending',
-      pointerId: event.pointerId,
-      pointerType: event.pointerType,
-      startX: event.clientX,
-      startY: event.clientY,
+      pointerId: pointer.pointerId,
+      pointerType: pointer.pointerType,
+      startX: pointer.clientX,
+      startY: pointer.clientY,
       offsetX: 0,
       exitDirection: 0,
     });
   };
 
-  const handlePointerMove = (event) => {
+  const moveGesture = ({ pointerId, clientX, clientY, preventDefault }) => {
     let shouldPreventDefault = false;
     setGestureState((previous) => {
-      if (previous.pointerId !== event.pointerId) return previous;
+      if (previous.pointerId !== pointerId) return previous;
       if (previous.phase === 'animating') return previous;
 
-      const deltaX = event.clientX - previous.startX;
-      const deltaY = event.clientY - previous.startY;
+      const deltaX = clientX - previous.startX;
+      const deltaY = clientY - previous.startY;
 
       if (previous.phase === 'pending') {
         if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 6) {
@@ -146,23 +151,23 @@ function App() {
     });
 
     if (shouldPreventDefault) {
-      event.preventDefault();
+      preventDefault?.();
     }
   };
 
-  const handlePointerUp = (event) => {
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+  const endGesture = ({ pointerId, clientX, currentTarget }) => {
+    if (currentTarget?.hasPointerCapture?.(pointerId)) {
+      currentTarget.releasePointerCapture(pointerId);
     }
 
     let navigate = 0;
     setGestureState((previous) => {
-      if (previous.pointerId !== event.pointerId) return previous;
+      if (previous.pointerId !== pointerId) return previous;
 
       const effectiveOffset =
         previous.phase === 'dragging'
           ? previous.offsetX
-          : event.clientX - previous.startX;
+          : clientX - previous.startX;
 
       if (previous.phase === 'dragging' && Math.abs(effectiveOffset) > 56) {
         const exitDirection = effectiveOffset > 0 ? 1 : -1;
@@ -194,13 +199,121 @@ function App() {
     }
   };
 
-  const handlePointerCancel = (event) => {
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+  const cancelGesture = ({ pointerId, currentTarget }) => {
+    if (currentTarget?.hasPointerCapture?.(pointerId)) {
+      currentTarget.releasePointerCapture(pointerId);
     }
     setGestureState((previous) => {
-      if (previous.pointerId !== event.pointerId) return previous;
+      if (previous.pointerId !== pointerId) return previous;
       return createGestureState();
+    });
+  };
+
+  const handlePointerDown = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    beginGesture(event);
+  };
+
+  const handlePointerMove = (event) => {
+    moveGesture({
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      preventDefault: () => event.preventDefault(),
+    });
+  };
+
+  const handlePointerUp = (event) => {
+    endGesture({
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      currentTarget: event.currentTarget,
+    });
+  };
+
+  const handlePointerCancel = (event) => {
+    cancelGesture({
+      pointerId: event.pointerId,
+      currentTarget: event.currentTarget,
+    });
+  };
+
+  const getTouchById = (touchList, identifier) => {
+    if (!touchList) return null;
+    for (let index = 0; index < touchList.length; index += 1) {
+      const touch = touchList.item(index);
+      if (touch?.identifier === identifier) {
+        return touch;
+      }
+    }
+    return null;
+  };
+
+  const handleTouchStart = (event) => {
+    if (gestureState.phase === 'animating' || gestureState.pointerId != null) {
+      return;
+    }
+
+    const touch = event.changedTouches?.[0] ?? event.touches?.[0];
+    if (!touch) return;
+
+    if (!shouldHandleGesture(event.target)) {
+      return;
+    }
+
+    beginGesture({
+      pointerId: touch.identifier,
+      pointerType: 'touch',
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      target: event.target,
+      currentTarget: event.currentTarget,
+    });
+  };
+
+  const handleTouchMove = (event) => {
+    if (gestureState.pointerType !== 'touch') {
+      return;
+    }
+
+    const activeTouch = getTouchById(event.touches, gestureState.pointerId);
+    if (!activeTouch) {
+      return;
+    }
+
+    moveGesture({
+      pointerId: activeTouch.identifier,
+      clientX: activeTouch.clientX,
+      clientY: activeTouch.clientY,
+      preventDefault: () => event.preventDefault(),
+    });
+  };
+
+  const handleTouchEnd = (event) => {
+    if (gestureState.pointerType !== 'touch') {
+      return;
+    }
+
+    const endedTouch = getTouchById(event.changedTouches, gestureState.pointerId);
+    if (!endedTouch) {
+      return;
+    }
+
+    endGesture({
+      pointerId: endedTouch.identifier,
+      clientX: endedTouch.clientX,
+      currentTarget: event.currentTarget,
+    });
+  };
+
+  const handleTouchCancel = (event) => {
+    if (gestureState.pointerType !== 'touch') {
+      return;
+    }
+
+    cancelGesture({
+      pointerId: gestureState.pointerId,
+      currentTarget: event.currentTarget,
     });
   };
 
@@ -234,6 +347,10 @@ function App() {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onPointerLeave={handlePointerCancel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
     >
       <div className="app-stage">
         <header className="app-header">
