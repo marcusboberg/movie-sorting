@@ -38,6 +38,7 @@ function App() {
       .map(({ order, ...movie }) => movie);
   }, []);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [transitionDirection, setTransitionDirection] = useState(0);
   const [ratings, setRatings] = useState(() =>
     movies.reduce((accumulator, movie) => {
       accumulator[movie.id] = 5;
@@ -50,11 +51,13 @@ function App() {
 
   const handlePrev = () => {
     if (movies.length === 0) return;
+    setTransitionDirection(-1);
     setCurrentIndex((previous) => (previous - 1 + movies.length) % movies.length);
   };
 
   const handleNext = () => {
     if (movies.length === 0) return;
+    setTransitionDirection(1);
     setCurrentIndex((previous) => (previous + 1) % movies.length);
   };
 
@@ -128,6 +131,11 @@ function App() {
   return (
     <div
       className="app-shell"
+      style={
+        activeMovie?.posterUrl
+          ? { '--active-poster': `url(${activeMovie.posterUrl})` }
+          : undefined
+      }
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -155,7 +163,11 @@ function App() {
         </header>
 
         <main className="app-main">
-          <MovieCard key={activeMovie?.id ?? 'empty'} movie={activeMovie} />
+          <MovieCard
+            key={activeMovie?.id ?? 'empty'}
+            movie={activeMovie}
+            transitionDirection={transitionDirection}
+          />
         </main>
 
         {activeMovie && (
