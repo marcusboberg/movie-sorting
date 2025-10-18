@@ -76,4 +76,4 @@ This will upload only the freshly built assets to the `movies` folder on one.com
 
 ## Data sources
 
-- All film metadata and artwork references live in [`src/movies.json`](src/movies.json), so the UI can render without additional API calls.
+- All film metadata and artwork references live in [`src/movies.json`](src/movies.json), so the UI loads instantly even when offline.

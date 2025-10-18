@@ -11,7 +11,7 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
-function MovieCard({ movie }) {
+function MovieCard({ movie, transitionDirection = 0 }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   if (!movie) {
@@ -24,10 +24,16 @@ function MovieCard({ movie }) {
   const runtime = formatRuntime(movie.runtimeMinutes);
   const overview =
     movie.overview ?? 'Plot summary unavailable right now.';
+  const directionClass =
+    transitionDirection > 0
+      ? 'movie-card-wrapper--forward'
+      : transitionDirection < 0
+        ? 'movie-card-wrapper--backward'
+        : '';
 
   return (
     <div
-      className="movie-card-wrapper"
+      className={`movie-card-wrapper ${directionClass}`}
       style={backgroundImage ? { '--poster-url': backgroundImage } : undefined}
     >
       <div className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''}`}>
