@@ -11,7 +11,14 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
-function MovieCard({ movie, transitionDirection = 0, dragOffset = 0, isDragging = false }) {
+function MovieCard({
+  movie,
+  transitionDirection = 0,
+  dragOffset = 0,
+  isDragging = false,
+  rating = 0,
+  isRatingActive = false,
+}) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   if (!movie) {
@@ -31,7 +38,7 @@ function MovieCard({ movie, transitionDirection = 0, dragOffset = 0, isDragging 
         ? 'movie-card-wrapper--backward'
         : '';
 
-  const clampedOffset = Math.max(-180, Math.min(180, dragOffset ?? 0));
+  const clampedOffset = Math.max(-420, Math.min(420, dragOffset ?? 0));
   const planarRotation = clampedOffset / 18;
   const flipRotation = clampedOffset / -45;
   const wrapperStyle = {
@@ -39,6 +46,7 @@ function MovieCard({ movie, transitionDirection = 0, dragOffset = 0, isDragging 
     transform: `translate3d(${clampedOffset}px, 0, 0) rotate(${planarRotation}deg) rotateY(${flipRotation}deg)`,
     transition: isDragging ? 'none' : 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
   };
+  const ratingValue = Number.isFinite(rating) ? rating : 0;
 
   return (
     <div className={`movie-card-wrapper ${directionClass}`} style={wrapperStyle}>
@@ -49,6 +57,13 @@ function MovieCard({ movie, transitionDirection = 0, dragOffset = 0, isDragging 
           onClick={() => setIsFlipped((value) => !value)}
         >
           <div className="movie-poster-shell">
+            <div className={`movie-rating-badge ${isRatingActive ? 'movie-rating-badge--active' : ''}`}>
+              <span className="movie-rating-value">{ratingValue.toFixed(1)}</span>
+              <span className="movie-rating-scale">/10</span>
+            </div>
+            <div className={`movie-rating-preview ${isRatingActive ? 'movie-rating-preview--visible' : ''}`}>
+              <span>{ratingValue.toFixed(1)}</span>
+            </div>
             <img
               src={posterUrl}
               alt={movie.title}

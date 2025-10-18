@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingSlider from './components/RatingSlider.jsx';
@@ -51,21 +51,39 @@ function App() {
       return accumulator;
     }, {})
   );
-  const [gestureState, setGestureState] = useState(null);
+  const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
+  const createGestureState = useCallback(
+    () => ({
+      phase: 'idle',
+      pointerId: null,
+      pointerType: null,
+      startX: 0,
+      startY: 0,
+      offsetX: 0,
+      exitDirection: 0,
+    }),
+    []
+  );
+  const [gestureState, setGestureState] = useState(() => createGestureState());
+  const swipeAnimationTimeoutRef = useRef(null);
 
   const activeMovie = movies[currentIndex];
+  const isRatingActive = activeRatingMovieId === activeMovie?.id;
 
-  const handlePrev = () => {
-    if (movies.length === 0) return;
-    setTransitionDirection(-1);
-    setCurrentIndex((previous) => (previous - 1 + movies.length) % movies.length);
+  const navigateBy = (step) => {
+    if (!movies.length) return;
+    setTransitionDirection(step);
+    setCurrentIndex((previous) => (previous + step + movies.length) % movies.length);
   };
 
-  const handleNext = () => {
-    if (movies.length === 0) return;
-    setTransitionDirection(1);
-    setCurrentIndex((previous) => (previous + 1) % movies.length);
-  };
+  const handlePrev = () => navigateBy(-1);
+  const handleNext = () => navigateBy(1);
+
+  useEffect(() => () => {
+    if (swipeAnimationTimeoutRef.current) {
+      clearTimeout(swipeAnimationTimeoutRef.current);
+    }
+  }, []);
 
   const handlePointerDown = (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -73,51 +91,58 @@ function App() {
       return;
     }
 
+    if (gestureState.phase === 'animating') {
+      return;
+    }
+
     event.currentTarget.setPointerCapture?.(event.pointerId);
 
     setGestureState({
+      phase: 'pending',
       pointerId: event.pointerId,
       pointerType: event.pointerType,
       startX: event.clientX,
       startY: event.clientY,
-      lastX: event.clientX,
-      deltaX: 0,
-      isSwiping: false,
+      offsetX: 0,
+      exitDirection: 0,
     });
   };
 
   const handlePointerMove = (event) => {
     let shouldPreventDefault = false;
     setGestureState((previous) => {
-      if (!previous || previous.pointerId !== event.pointerId) return previous;
+      if (previous.pointerId !== event.pointerId) return previous;
+      if (previous.phase === 'animating') return previous;
 
       const deltaX = event.clientX - previous.startX;
       const deltaY = event.clientY - previous.startY;
 
-      if (!previous.isSwiping) {
-        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 14) {
+      if (previous.phase === 'pending') {
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 6) {
           if (previous.pointerType !== 'mouse') {
             shouldPreventDefault = true;
           }
           return {
             ...previous,
-            isSwiping: true,
-            lastX: event.clientX,
-            deltaX,
+            phase: 'dragging',
+            offsetX: deltaX,
           };
         }
         return previous;
       }
 
-      if (previous.pointerType !== 'mouse') {
-        shouldPreventDefault = true;
+      if (previous.phase === 'dragging') {
+        if (previous.pointerType !== 'mouse') {
+          shouldPreventDefault = true;
+        }
+
+        return {
+          ...previous,
+          offsetX: deltaX,
+        };
       }
 
-      return {
-        ...previous,
-        lastX: event.clientX,
-        deltaX,
-      };
+      return previous;
     });
 
     if (shouldPreventDefault) {
@@ -132,25 +157,40 @@ function App() {
 
     let navigate = 0;
     setGestureState((previous) => {
-      if (!previous || previous.pointerId !== event.pointerId) return previous;
+      if (previous.pointerId !== event.pointerId) return previous;
 
-      const delta = previous.isSwiping
-        ? previous.deltaX
-        : event.clientX - previous.startX;
+      const effectiveOffset =
+        previous.phase === 'dragging'
+          ? previous.offsetX
+          : event.clientX - previous.startX;
 
-      if (Math.abs(delta) > 60) {
-        navigate = delta > 0 ? -1 : 1;
+      if (previous.phase === 'dragging' && Math.abs(effectiveOffset) > 56) {
+        const exitDirection = effectiveOffset > 0 ? 1 : -1;
+        navigate = exitDirection > 0 ? -1 : 1;
+        return {
+          phase: 'animating',
+          pointerId: null,
+          pointerType: previous.pointerType,
+          startX: previous.startX,
+          startY: previous.startY,
+          offsetX: exitDirection * 420,
+          exitDirection,
+        };
       }
 
-      return null;
+      return createGestureState();
     });
 
     if (navigate !== 0) {
-      if (navigate < 0) {
-        handlePrev();
-      } else {
-        handleNext();
+      setActiveRatingMovieId(null);
+      if (swipeAnimationTimeoutRef.current) {
+        clearTimeout(swipeAnimationTimeoutRef.current);
       }
+
+      swipeAnimationTimeoutRef.current = setTimeout(() => {
+        navigateBy(navigate);
+        setGestureState(createGestureState());
+      }, 280);
     }
   };
 
@@ -159,13 +199,26 @@ function App() {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     setGestureState((previous) => {
-      if (!previous || previous.pointerId !== event.pointerId) return previous;
-      return null;
+      if (previous.pointerId !== event.pointerId) return previous;
+      return createGestureState();
     });
   };
 
+  const normalizeRating = useCallback((value) => Math.round((value ?? 0) * 10) / 10, []);
+
   const handleRatingChange = (movieId, value) => {
-    setRatings((previous) => ({ ...previous, [movieId]: value }));
+    const normalized = normalizeRating(value);
+    setRatings((previous) => ({ ...previous, [movieId]: normalized }));
+  };
+
+  const handleRatingCommit = (movieId, value) => {
+    const normalized = normalizeRating(value);
+    setRatings((previous) => ({ ...previous, [movieId]: normalized }));
+    setActiveRatingMovieId(null);
+  };
+
+  const handleRatingInteractionChange = (movieId, isActive) => {
+    setActiveRatingMovieId(isActive ? movieId : null);
   };
 
   return (
@@ -204,13 +257,15 @@ function App() {
         </header>
 
         <main className="app-main">
-          <MovieCard
-            key={activeMovie?.id ?? 'empty'}
-            movie={activeMovie}
-            transitionDirection={transitionDirection}
-            dragOffset={gestureState?.deltaX ?? 0}
-            isDragging={Boolean(gestureState?.isSwiping)}
-          />
+            <MovieCard
+              key={activeMovie?.id ?? 'empty'}
+              movie={activeMovie}
+              transitionDirection={transitionDirection}
+              dragOffset={gestureState.offsetX}
+              isDragging={gestureState.phase === 'dragging'}
+              rating={activeMovie ? ratings[activeMovie.id] ?? 0 : 0}
+              isRatingActive={isRatingActive}
+            />
         </main>
 
         {activeMovie && (
@@ -218,6 +273,10 @@ function App() {
             <RatingSlider
               value={ratings[activeMovie.id] ?? 5}
               onChange={(value) => handleRatingChange(activeMovie.id, value)}
+              onCommit={(value) => handleRatingCommit(activeMovie.id, value)}
+              onInteractionChange={(isActive) =>
+                handleRatingInteractionChange(activeMovie.id, isActive)
+              }
             />
           </div>
         )}
