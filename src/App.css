@@ -91,16 +91,58 @@ p {
   width: 100%;
   display: flex;
   justify-content: center;
+  min-height: 0;
 }
 
-.movie-swiper {
+.movie-stage {
+  position: relative;
   width: min(320px, 100%);
   aspect-ratio: 3 / 4.4;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
 }
 
-.movie-swiper .swiper-slide {
-  display: flex;
-  justify-content: center;
+.movie-stage--empty {
+  font-size: 0.9rem;
+  color: #d0d0d0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.movie-stage--forward {
+  animation: movie-stage-slide-in 260ms ease forwards;
+}
+
+.movie-stage--backward {
+  animation: movie-stage-slide-in-reverse 260ms ease forwards;
+}
+
+@keyframes movie-stage-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes movie-stage-slide-in-reverse {
+  from {
+    opacity: 0;
+    transform: translateX(-16px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
 .movie-card-wrapper {
