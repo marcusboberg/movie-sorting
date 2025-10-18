@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
+import DebugConsole from './components/DebugConsole.jsx';
 import './App.css';
 
 function normalizeMovie(movie, index) {
@@ -475,6 +476,7 @@ function App() {
           )}
         </main>
 
+        <DebugConsole />
       </div>
     </div>
   );
