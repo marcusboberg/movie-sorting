@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingSlider from './components/RatingSlider.jsx';
@@ -54,6 +54,7 @@ function App() {
   );
   const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
   const [transitionDirection, setTransitionDirection] = useState(null);
+  const swipeAreaRef = useRef(null);
 
   const activeMovie = movies[currentIndex];
 
@@ -127,6 +128,61 @@ function App() {
     setActiveRatingMovieId(isActive ? movieId : null);
   };
 
+  useEffect(() => {
+    const swipeElement = swipeAreaRef.current;
+    if (!swipeElement) return;
+
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    const horizontalThreshold = 48;
+    const verticalTolerance = 60;
+
+    const handlePointerDown = (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+    };
+
+    const handlePointerMove = (event) => {
+      if (event.pointerId !== pointerId) return;
+
+      const deltaX = event.clientX - startX;
+      const deltaY = Math.abs(event.clientY - startY);
+
+      if (Math.abs(deltaX) < horizontalThreshold || deltaY > verticalTolerance) {
+        return;
+      }
+
+      // The old implementation only reacted to keyboard clicks, so swiping did nothing on mobile.
+      // Trigger the same navigation logic once a clear horizontal swipe is detected.
+      navigateBy(deltaX < 0 ? 1 : -1);
+      pointerId = null;
+    };
+
+    const resetSwipe = () => {
+      pointerId = null;
+    };
+
+    swipeElement.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    swipeElement.addEventListener('pointermove', handlePointerMove, { passive: true });
+    swipeElement.addEventListener('pointerup', resetSwipe, { passive: true });
+    swipeElement.addEventListener('pointercancel', resetSwipe);
+    swipeElement.addEventListener('pointerleave', resetSwipe);
+
+    return () => {
+      swipeElement.removeEventListener('pointerdown', handlePointerDown);
+      swipeElement.removeEventListener('pointermove', handlePointerMove);
+      swipeElement.removeEventListener('pointerup', resetSwipe);
+      swipeElement.removeEventListener('pointercancel', resetSwipe);
+      swipeElement.removeEventListener('pointerleave', resetSwipe);
+    };
+  }, [navigateBy]);
+
   return (
     <div
       className="app-shell"
@@ -159,7 +215,7 @@ function App() {
           </button>
         </header>
 
-        <main className="app-main">
+        <main className="app-main" ref={swipeAreaRef}>
           {activeMovie ? (
             <div
               key={activeMovie.id}
