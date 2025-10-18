@@ -91,18 +91,25 @@ p {
   width: 100%;
   display: flex;
   justify-content: center;
-  touch-action: none;
+}
+
+.movie-swiper {
+  width: min(320px, 100%);
+  aspect-ratio: 3 / 4.4;
+}
+
+.movie-swiper .swiper-slide {
+  display: flex;
+  justify-content: center;
 }
 
 .movie-card-wrapper {
   position: relative;
-  width: min(320px, 100%);
+  width: 100%;
   aspect-ratio: 3 / 4.4;
   display: grid;
   place-items: center;
   perspective: 2000px;
-  will-change: transform;
-  touch-action: pan-y;
 }
 
 .movie-card-wrapper::before {
@@ -139,48 +146,6 @@ p {
   display: grid;
   transform-style: preserve-3d;
   z-index: 1;
-}
-
-.movie-card-wrapper--forward .movie-card {
-  animation: movie-card-forward 540ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.movie-card-wrapper--backward .movie-card {
-  animation: movie-card-backward 540ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-@keyframes movie-card-forward {
-  0% {
-    opacity: 0;
-    transform: translate3d(48px, 0, 0) rotateY(-22deg) scale(0.92);
-  }
-
-  60% {
-    opacity: 1;
-    transform: translate3d(-6px, 0, 0) rotateY(6deg) scale(1.02);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) rotateY(0deg) scale(1);
-  }
-}
-
-@keyframes movie-card-backward {
-  0% {
-    opacity: 0;
-    transform: translate3d(-48px, 0, 0) rotateY(22deg) scale(0.92);
-  }
-
-  60% {
-    opacity: 1;
-    transform: translate3d(6px, 0, 0) rotateY(-6deg) scale(1.02);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) rotateY(0deg) scale(1);
-  }
 }
 
 .movie-card button {
