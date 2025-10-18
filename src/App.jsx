@@ -119,7 +119,14 @@ function App() {
   const handleRatingChange = useCallback(
     (movieId, value) => {
       const normalized = normalizeRating(value);
-      setRatings((previous) => ({ ...previous, [movieId]: normalized }));
+      setRatings((previous) => {
+        const current = previous[movieId] ?? 0;
+        if (Math.abs(current - normalized) < 0.0001) {
+          return previous;
+        }
+
+        return { ...previous, [movieId]: normalized };
+      });
     },
     [normalizeRating]
   );
@@ -127,7 +134,14 @@ function App() {
   const handleRatingCommit = useCallback(
     (movieId, value) => {
       const normalized = normalizeRating(value);
-      setRatings((previous) => ({ ...previous, [movieId]: normalized }));
+      setRatings((previous) => {
+        const current = previous[movieId] ?? 0;
+        if (Math.abs(current - normalized) < 0.0001) {
+          return previous;
+        }
+
+        return { ...previous, [movieId]: normalized };
+      });
       setActiveRatingMovieId(null);
     },
     [normalizeRating]
@@ -155,6 +169,7 @@ function App() {
     const horizontalThreshold = 48;
     const verticalTolerance = 60;
     const ratingActivationThreshold = 12;
+    const ratingActivationAngle = Math.tan((12 * Math.PI) / 180);
     const pixelsPerRatingPoint = 28;
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -215,8 +230,15 @@ function App() {
 
       if (interactionMode === 'pending') {
         if (Math.abs(deltaY) >= ratingActivationThreshold) {
-          interactionMode = 'rate';
-          handleRatingInteractionChange(activeMovieId, true);
+          const horizontalRatio = Math.abs(deltaX) / Math.max(Math.abs(deltaY), 1);
+          if (horizontalRatio <= ratingActivationAngle) {
+            interactionMode = 'rate';
+            handleRatingInteractionChange(activeMovieId, true);
+          } else if (Math.abs(deltaX) >= horizontalThreshold) {
+            interactionMode = 'navigate';
+          } else {
+            return;
+          }
         } else if (
           Math.abs(deltaX) >= horizontalThreshold &&
           Math.abs(deltaY) <= verticalTolerance
