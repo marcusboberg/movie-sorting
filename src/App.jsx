@@ -21,7 +21,13 @@ function normalizeMovie(movie, index) {
     posterUrl: movie?.image ?? movie?.posterUrl ?? null,
     runtimeMinutes,
     releaseYear: releaseYear != null ? String(releaseYear) : '—',
-    overview: movie?.description ?? movie?.overview ?? '',
+    overview: (() => {
+      const description = typeof movie?.description === 'string' ? movie.description.trim() : '';
+      if (description) return description;
+
+      const overview = typeof movie?.overview === 'string' ? movie.overview.trim() : '';
+      return overview || null;
+    })(),
   };
 }
 
