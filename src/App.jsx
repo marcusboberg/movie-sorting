@@ -346,7 +346,14 @@ function App() {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
-      onPointerLeave={handlePointerCancel}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'mouse') {
+          handlePointerCancel({
+            pointerId: event.pointerId,
+            currentTarget: event.currentTarget,
+          });
+        }
+      }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
