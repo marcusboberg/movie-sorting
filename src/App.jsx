@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
-import RatingSlider from './components/RatingSlider.jsx';
 import './App.css';
 
 function normalizeMovie(movie, index) {
@@ -52,6 +51,10 @@ function App() {
       return accumulator;
     }, {})
   );
+  const ratingsRef = useRef(ratings);
+  useEffect(() => {
+    ratingsRef.current = ratings;
+  }, [ratings]);
   const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
   const [transitionDirection, setTransitionDirection] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
@@ -113,20 +116,26 @@ function App() {
   }, [isOverviewOpen, navigateBy]);
   const normalizeRating = useCallback((value) => Math.round((value ?? 0) * 10) / 10, []);
 
-  const handleRatingChange = (movieId, value) => {
-    const normalized = normalizeRating(value);
-    setRatings((previous) => ({ ...previous, [movieId]: normalized }));
-  };
+  const handleRatingChange = useCallback(
+    (movieId, value) => {
+      const normalized = normalizeRating(value);
+      setRatings((previous) => ({ ...previous, [movieId]: normalized }));
+    },
+    [normalizeRating]
+  );
 
-  const handleRatingCommit = (movieId, value) => {
-    const normalized = normalizeRating(value);
-    setRatings((previous) => ({ ...previous, [movieId]: normalized }));
-    setActiveRatingMovieId(null);
-  };
+  const handleRatingCommit = useCallback(
+    (movieId, value) => {
+      const normalized = normalizeRating(value);
+      setRatings((previous) => ({ ...previous, [movieId]: normalized }));
+      setActiveRatingMovieId(null);
+    },
+    [normalizeRating]
+  );
 
-  const handleRatingInteractionChange = (movieId, isActive) => {
+  const handleRatingInteractionChange = useCallback((movieId, isActive) => {
     setActiveRatingMovieId(isActive ? movieId : null);
-  };
+  }, []);
 
   useEffect(() => {
     if (isOverviewOpen) {
@@ -134,58 +143,154 @@ function App() {
     }
 
     const swipeElement = swipeAreaRef.current;
-    if (!swipeElement) return;
+    const activeMovieId = activeMovie?.id ?? null;
+    if (!swipeElement || activeMovieId == null) return;
 
     let pointerId = null;
     let startX = 0;
     let startY = 0;
+    let interactionMode = null;
+    let initialRating = ratingsRef.current[activeMovieId] ?? 0;
+    let hasRatingChanged = false;
     const horizontalThreshold = 48;
     const verticalTolerance = 60;
+    const ratingActivationThreshold = 12;
+    const pixelsPerRatingPoint = 28;
+
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    const resetInteraction = () => {
+      pointerId = null;
+      startX = 0;
+      startY = 0;
+      interactionMode = null;
+      hasRatingChanged = false;
+      initialRating = ratingsRef.current[activeMovieId] ?? 0;
+    };
+
+    let shouldCancelClick = false;
 
     const handlePointerDown = (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) {
         return;
       }
 
+      shouldCancelClick = false;
       pointerId = event.pointerId;
       startX = event.clientX;
       startY = event.clientY;
+      interactionMode = event.target.closest('.movie-poster-shell') ? 'pending' : 'navigate';
+      hasRatingChanged = false;
+      initialRating = ratingsRef.current[activeMovieId] ?? 0;
     };
 
-    const handlePointerMove = (event) => {
-      if (event.pointerId !== pointerId) return;
-
-      const deltaX = event.clientX - startX;
-      const deltaY = Math.abs(event.clientY - startY);
-
-      if (Math.abs(deltaX) < horizontalThreshold || deltaY > verticalTolerance) {
+    const maybeCommitRating = (event) => {
+      if (interactionMode !== 'rate' || !hasRatingChanged) {
         return;
       }
 
-      // The old implementation only reacted to keyboard clicks, so swiping did nothing on mobile.
-      // Trigger the same navigation logic once a clear horizontal swipe is detected.
-      navigateBy(deltaX < 0 ? 1 : -1);
-      pointerId = null;
+      const deltaY = event.clientY - startY;
+      const rawValue = initialRating + (startY - event.clientY) / pixelsPerRatingPoint;
+      const nextValue = clamp(rawValue, 0, 10);
+      handleRatingCommit(activeMovieId, nextValue);
+      handleRatingInteractionChange(activeMovieId, false);
+      shouldCancelClick = true;
     };
 
-    const resetSwipe = () => {
-      pointerId = null;
+    const handlePointerMove = (event) => {
+      if (event.pointerId !== pointerId || !interactionMode) return;
+
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+
+      if (interactionMode === 'navigate') {
+        if (Math.abs(deltaX) < horizontalThreshold || Math.abs(deltaY) > verticalTolerance) {
+          return;
+        }
+
+        navigateBy(deltaX < 0 ? 1 : -1);
+        resetInteraction();
+        return;
+      }
+
+      if (interactionMode === 'pending') {
+        if (Math.abs(deltaY) >= ratingActivationThreshold) {
+          interactionMode = 'rate';
+          handleRatingInteractionChange(activeMovieId, true);
+        } else if (
+          Math.abs(deltaX) >= horizontalThreshold &&
+          Math.abs(deltaY) <= verticalTolerance
+        ) {
+          interactionMode = 'navigate';
+        } else {
+          return;
+        }
+      }
+
+      if (interactionMode === 'navigate') {
+        if (Math.abs(deltaX) < horizontalThreshold || Math.abs(deltaY) > verticalTolerance) {
+          return;
+        }
+
+        navigateBy(deltaX < 0 ? 1 : -1);
+        resetInteraction();
+        return;
+      }
+
+      if (interactionMode === 'rate') {
+        const rawValue = initialRating + (startY - event.clientY) / pixelsPerRatingPoint;
+        const nextValue = clamp(rawValue, 0, 10);
+        hasRatingChanged = true;
+        handleRatingChange(activeMovieId, nextValue);
+        event.preventDefault();
+      }
     };
 
-    swipeElement.addEventListener('pointerdown', handlePointerDown, { passive: true });
-    swipeElement.addEventListener('pointermove', handlePointerMove, { passive: true });
-    swipeElement.addEventListener('pointerup', resetSwipe, { passive: true });
-    swipeElement.addEventListener('pointercancel', resetSwipe);
-    swipeElement.addEventListener('pointerleave', resetSwipe);
+    const handlePointerUp = (event) => {
+      if (event.pointerId !== pointerId) return;
+      maybeCommitRating(event);
+      resetInteraction();
+    };
+
+    const handlePointerCancel = (event) => {
+      if (event.pointerId !== pointerId) return;
+      if (interactionMode === 'rate' && hasRatingChanged) {
+        handleRatingInteractionChange(activeMovieId, false);
+        shouldCancelClick = true;
+      }
+      resetInteraction();
+    };
+
+    const handleClickCapture = (event) => {
+      if (!shouldCancelClick) return;
+      shouldCancelClick = false;
+      event.stopPropagation();
+      event.preventDefault();
+    };
+
+    swipeElement.addEventListener('pointerdown', handlePointerDown, { passive: false });
+    swipeElement.addEventListener('pointermove', handlePointerMove, { passive: false });
+    swipeElement.addEventListener('pointerup', handlePointerUp, { passive: false });
+    swipeElement.addEventListener('pointercancel', handlePointerCancel, { passive: false });
+    swipeElement.addEventListener('pointerleave', handlePointerCancel, { passive: false });
+    swipeElement.addEventListener('click', handleClickCapture, true);
 
     return () => {
       swipeElement.removeEventListener('pointerdown', handlePointerDown);
       swipeElement.removeEventListener('pointermove', handlePointerMove);
-      swipeElement.removeEventListener('pointerup', resetSwipe);
-      swipeElement.removeEventListener('pointercancel', resetSwipe);
-      swipeElement.removeEventListener('pointerleave', resetSwipe);
+      swipeElement.removeEventListener('pointerup', handlePointerUp);
+      swipeElement.removeEventListener('pointercancel', handlePointerCancel);
+      swipeElement.removeEventListener('pointerleave', handlePointerCancel);
+      swipeElement.removeEventListener('click', handleClickCapture, true);
     };
-  }, [isOverviewOpen, navigateBy]);
+  }, [
+    activeMovie?.id,
+    handleRatingChange,
+    handleRatingCommit,
+    handleRatingInteractionChange,
+    isOverviewOpen,
+    navigateBy,
+  ]);
 
   const handleOpenOverview = () => {
     setActiveRatingMovieId(null);
@@ -208,7 +313,7 @@ function App() {
 
   return (
     <div
-      className="app-shell"
+      className={`app-shell ${isOverviewOpen ? 'app-shell--overview' : 'app-shell--focused'}`}
       style={
         activeMovie?.posterUrl
           ? { '--active-poster': `url(${activeMovie.posterUrl})` }
@@ -228,7 +333,10 @@ function App() {
           </button>
         </header>
 
-        <main className="app-main" ref={isOverviewOpen ? undefined : swipeAreaRef}>
+        <main
+          className={`app-main ${isOverviewOpen ? 'app-main--overview' : 'app-main--focused'}`}
+          ref={isOverviewOpen ? undefined : swipeAreaRef}
+        >
           {isOverviewOpen ? (
             <div className="overview-grid">
               {movies.map((movie, index) => {
@@ -248,7 +356,6 @@ function App() {
                         <div className="overview-card__fallback">Ingen affisch</div>
                       )}
                     </div>
-                    <span className="overview-card__title">{movie.title}</span>
                   </button>
                 );
               })}
@@ -271,18 +378,6 @@ function App() {
           )}
         </main>
 
-        {!isOverviewOpen && activeMovie && (
-          <div className="rating-area">
-            <RatingSlider
-              value={ratings[activeMovie.id] ?? 5}
-              onChange={(value) => handleRatingChange(activeMovie.id, value)}
-              onCommit={(value) => handleRatingCommit(activeMovie.id, value)}
-              onInteractionChange={(isActive) =>
-                handleRatingInteractionChange(activeMovie.id, isActive)
-              }
-            />
-          </div>
-        )}
       </div>
     </div>
   );
