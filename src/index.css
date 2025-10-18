@@ -16,10 +16,22 @@ body {
   margin: 0;
   height: 100vh;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #root {
   min-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  html,
+  body {
+    height: 100dvh;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
 }
 
 button,

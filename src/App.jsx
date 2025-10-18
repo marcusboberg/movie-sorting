@@ -51,7 +51,7 @@ function App() {
       return accumulator;
     }, {})
   );
-  const [touchState, setTouchState] = useState(null);
+  const [gestureState, setGestureState] = useState(null);
 
   const activeMovie = movies[currentIndex];
 
@@ -67,67 +67,101 @@ function App() {
     setCurrentIndex((previous) => (previous + 1) % movies.length);
   };
 
-  const handleTouchStart = (event) => {
-    if (event.target.closest('.rating-area')) {
-      setTouchState(null);
+  const handlePointerDown = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.target.closest('.rating-area') || !event.target.closest('.movie-card-wrapper')) {
       return;
     }
 
-    const touch = event.touches[0];
-    setTouchState({
-      startX: touch.clientX,
-      startY: touch.clientY,
-      lastX: touch.clientX,
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    setGestureState({
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      deltaX: 0,
       isSwiping: false,
     });
   };
 
-  const handleTouchMove = (event) => {
-    setTouchState((previous) => {
-      if (!previous) return previous;
-      const touch = event.touches[0];
-      const deltaX = touch.clientX - previous.startX;
-      const deltaY = touch.clientY - previous.startY;
+  const handlePointerMove = (event) => {
+    let shouldPreventDefault = false;
+    setGestureState((previous) => {
+      if (!previous || previous.pointerId !== event.pointerId) return previous;
+
+      const deltaX = event.clientX - previous.startX;
+      const deltaY = event.clientY - previous.startY;
 
       if (!previous.isSwiping) {
-        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 14) {
+          if (previous.pointerType !== 'mouse') {
+            shouldPreventDefault = true;
+          }
           return {
             ...previous,
             isSwiping: true,
-            lastX: touch.clientX,
+            lastX: event.clientX,
+            deltaX,
           };
         }
         return previous;
       }
 
+      if (previous.pointerType !== 'mouse') {
+        shouldPreventDefault = true;
+      }
+
       return {
         ...previous,
-        lastX: touch.clientX,
+        lastX: event.clientX,
+        deltaX,
       };
     });
+
+    if (shouldPreventDefault) {
+      event.preventDefault();
+    }
   };
 
-  const handleTouchEnd = (event) => {
-    setTouchState((previous) => {
-      if (!previous) return null;
-      const touch = event.changedTouches[0];
-      const endX = previous.isSwiping ? previous.lastX : touch.clientX;
-      const delta = endX - previous.startX;
+  const handlePointerUp = (event) => {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    let navigate = 0;
+    setGestureState((previous) => {
+      if (!previous || previous.pointerId !== event.pointerId) return previous;
+
+      const delta = previous.isSwiping
+        ? previous.deltaX
+        : event.clientX - previous.startX;
 
       if (Math.abs(delta) > 60) {
-        if (delta > 0) {
-          handlePrev();
-        } else {
-          handleNext();
-        }
+        navigate = delta > 0 ? -1 : 1;
       }
 
       return null;
     });
+
+    if (navigate !== 0) {
+      if (navigate < 0) {
+        handlePrev();
+      } else {
+        handleNext();
+      }
+    }
   };
 
-  const handleTouchCancel = () => {
-    setTouchState(null);
+  const handlePointerCancel = (event) => {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setGestureState((previous) => {
+      if (!previous || previous.pointerId !== event.pointerId) return previous;
+      return null;
+    });
   };
 
   const handleRatingChange = (movieId, value) => {
@@ -142,10 +176,11 @@ function App() {
           ? { '--active-poster': `url(${activeMovie.posterUrl})` }
           : undefined
       }
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchCancel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerCancel}
     >
       <div className="app-stage">
         <header className="app-header">
@@ -173,6 +208,8 @@ function App() {
             key={activeMovie?.id ?? 'empty'}
             movie={activeMovie}
             transitionDirection={transitionDirection}
+            dragOffset={gestureState?.deltaX ?? 0}
+            isDragging={Boolean(gestureState?.isSwiping)}
           />
         </main>
 

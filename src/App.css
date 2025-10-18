@@ -5,6 +5,7 @@ p {
 .app-shell {
   position: relative;
   min-height: 100vh;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,6 +90,7 @@ p {
   width: 100%;
   display: flex;
   justify-content: center;
+  touch-action: none;
 }
 
 .movie-card-wrapper {
@@ -98,6 +100,7 @@ p {
   display: grid;
   place-items: center;
   perspective: 2000px;
+  will-change: transform;
 }
 
 .movie-card-wrapper::before {
@@ -389,5 +392,12 @@ p {
 @media (min-width: 480px) {
   .app-shell {
     padding-top: 40px;
+  }
+}
+
+@supports (height: 100dvh) {
+  .app-shell {
+    min-height: 100dvh;
+    height: 100dvh;
   }
 }
