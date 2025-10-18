@@ -104,6 +104,12 @@ p {
   justify-content: center;
 }
 
+.movie-stage__slide {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
 .movie-stage--empty {
   font-size: 0.9rem;
   color: #d0d0d0;
