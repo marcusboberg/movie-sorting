@@ -1,13 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { EffectCards, Keyboard, Navigation } from 'swiper/modules';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingSlider from './components/RatingSlider.jsx';
 import './App.css';
-import 'swiper/css';
-import 'swiper/css/effect-cards';
-import 'swiper/css/navigation';
 
 function normalizeMovie(movie, index) {
   const fallbackOrder = index + 1;
@@ -58,28 +53,19 @@ function App() {
     }, {})
   );
   const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
-  const swiperRef = useRef(null);
-  const prevButtonRef = useRef(null);
-  const nextButtonRef = useRef(null);
+  const [transitionDirection, setTransitionDirection] = useState(null);
 
   const activeMovie = movies[currentIndex];
 
   const navigateBy = useCallback(
     (step) => {
       if (!step || movies.length <= 1) return;
-      const swiper = swiperRef.current;
-      if (swiper) {
-        if (step > 0) {
-          swiper.slideNext();
-        } else {
-          swiper.slidePrev();
-        }
-      } else {
-        setCurrentIndex((previous) => {
-          const nextIndex = (previous + step + movies.length) % movies.length;
-          return nextIndex;
-        });
-      }
+
+      setTransitionDirection(step > 0 ? 'forward' : 'backward');
+      setCurrentIndex((previous) => {
+        const nextIndex = (previous + step + movies.length) % movies.length;
+        return nextIndex;
+      });
       setActiveRatingMovieId(null);
     },
     [movies.length]
@@ -89,6 +75,10 @@ function App() {
   const handleNext = () => navigateBy(1);
 
   useEffect(() => {
+    if (movies.length <= 1) {
+      setTransitionDirection(null);
+    }
+
     if (movies.length === 0) {
       setCurrentIndex(0);
       return;
@@ -100,35 +90,6 @@ function App() {
       }
       return 0;
     });
-  }, [movies.length]);
-
-  useEffect(() => {
-    const swiper = swiperRef.current;
-    if (!swiper) return;
-
-    // Keep Swiper in sync with React so touch gestures stay enabled on mobile.
-    swiper.allowTouchMove = movies.length > 1;
-    swiper.update();
-
-    if (swiper.realIndex !== currentIndex) {
-      if (swiper.params.loop) {
-        swiper.slideToLoop(currentIndex, 0);
-      } else {
-        swiper.slideTo(currentIndex, 0);
-      }
-    }
-  }, [currentIndex, movies.length]);
-
-  useEffect(() => {
-    const swiper = swiperRef.current;
-    if (!swiper || !swiper.navigation) return;
-
-    // Re-bind navigation elements so the same buttons control Swiper and keyboard nav.
-    swiper.params.navigation.prevEl = prevButtonRef.current;
-    swiper.params.navigation.nextEl = nextButtonRef.current;
-    swiper.navigation.destroy();
-    swiper.navigation.init();
-    swiper.navigation.update();
   }, [movies.length]);
 
   useEffect(() => {
@@ -183,7 +144,6 @@ function App() {
             onClick={handlePrev}
             disabled={movies.length <= 1}
             aria-label="Previous movie"
-            ref={prevButtonRef}
           >
             ‹
           </button>
@@ -194,49 +154,25 @@ function App() {
             onClick={handleNext}
             disabled={movies.length <= 1}
             aria-label="Next movie"
-            ref={nextButtonRef}
           >
             ›
           </button>
         </header>
 
         <main className="app-main">
-          {movies.length > 0 ? (
-            <Swiper
-              modules={[EffectCards, Keyboard, Navigation]}
-              effect="cards"
-              keyboard={{ enabled: true }}
-              navigation={{
-                prevEl: prevButtonRef.current,
-                nextEl: nextButtonRef.current,
-              }}
-              loop={movies.length > 1}
-              allowTouchMove={movies.length > 1}
-              onSwiper={(instance) => {
-                swiperRef.current = instance;
-              }}
-              onBeforeInit={(swiper) => {
-                // Hook up the existing navigation buttons to Swiper's navigation module.
-                swiper.params.navigation.prevEl = prevButtonRef.current;
-                swiper.params.navigation.nextEl = nextButtonRef.current;
-              }}
-              onSlideChange={(swiper) => {
-                // Update React state whenever Swiper changes slides (including touch swipes).
-                setCurrentIndex(swiper.realIndex);
-                setActiveRatingMovieId(null);
-              }}
-              className="movie-stage"
+          {activeMovie ? (
+            <div
+              key={activeMovie.id}
+              className={`movie-stage ${
+                transitionDirection ? `movie-stage--${transitionDirection}` : ''
+              }`}
             >
-              {movies.map((movie) => (
-                <SwiperSlide key={movie.id} className="movie-stage__slide">
-                  <MovieCard
-                    movie={movie}
-                    rating={ratings[movie.id] ?? 0}
-                    isRatingActive={activeRatingMovieId === movie.id}
-                  />
-                </SwiperSlide>
-              ))}
-            </Swiper>
+              <MovieCard
+                movie={activeMovie}
+                rating={ratings[activeMovie.id] ?? 0}
+                isRatingActive={activeRatingMovieId === activeMovie.id}
+              />
+            </div>
           ) : (
             <div className="movie-stage movie-stage--empty">Inga filmer att visa.</div>
           )}
