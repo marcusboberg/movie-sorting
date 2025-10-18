@@ -11,7 +11,13 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-    <!-- Loading the Vite entry ensures JSX is compiled before it reaches the browser. -->
+    <script type="module">
+      if (import.meta.env.DEV) {
+        import('/src/main.jsx');
+      } else {
+        import('./src/main.jsx');
+      }
+    </script>
+    <!-- Loading the appropriate entry point ensures JSX is compiled before it reaches the browser. -->
   </body>
 </html>
