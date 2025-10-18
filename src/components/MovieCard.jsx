@@ -11,7 +11,7 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
-function MovieCard({ movie, transitionDirection = 0 }) {
+function MovieCard({ movie, transitionDirection = 0, dragOffset = 0, isDragging = false }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   if (!movie) {
@@ -31,11 +31,17 @@ function MovieCard({ movie, transitionDirection = 0 }) {
         ? 'movie-card-wrapper--backward'
         : '';
 
+  const clampedOffset = Math.max(-180, Math.min(180, dragOffset ?? 0));
+  const planarRotation = clampedOffset / 18;
+  const flipRotation = clampedOffset / -45;
+  const wrapperStyle = {
+    ...(backgroundImage ? { '--poster-url': backgroundImage } : {}),
+    transform: `translate3d(${clampedOffset}px, 0, 0) rotate(${planarRotation}deg) rotateY(${flipRotation}deg)`,
+    transition: isDragging ? 'none' : 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+  };
+
   return (
-    <div
-      className={`movie-card-wrapper ${directionClass}`}
-      style={backgroundImage ? { '--poster-url': backgroundImage } : undefined}
-    >
+    <div className={`movie-card-wrapper ${directionClass}`} style={wrapperStyle}>
       <div className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''}`}>
         <button
           type="button"
