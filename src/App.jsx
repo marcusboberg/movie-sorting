@@ -54,6 +54,7 @@ function App() {
   );
   const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
   const [transitionDirection, setTransitionDirection] = useState(null);
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const swipeAreaRef = useRef(null);
 
   const activeMovie = movies[currentIndex];
@@ -71,9 +72,6 @@ function App() {
     },
     [movies.length]
   );
-
-  const handlePrev = () => navigateBy(-1);
-  const handleNext = () => navigateBy(1);
 
   useEffect(() => {
     if (movies.length <= 1) {
@@ -101,6 +99,8 @@ function App() {
         navigateBy(1);
       } else if (event.key === 'ArrowLeft') {
         navigateBy(-1);
+      } else if (event.key === 'Escape' && isOverviewOpen) {
+        setIsOverviewOpen(false);
       } else {
         return;
       }
@@ -110,7 +110,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigateBy]);
+  }, [isOverviewOpen, navigateBy]);
   const normalizeRating = useCallback((value) => Math.round((value ?? 0) * 10) / 10, []);
 
   const handleRatingChange = (movieId, value) => {
@@ -129,6 +129,10 @@ function App() {
   };
 
   useEffect(() => {
+    if (isOverviewOpen) {
+      return undefined;
+    }
+
     const swipeElement = swipeAreaRef.current;
     if (!swipeElement) return;
 
@@ -181,7 +185,26 @@ function App() {
       swipeElement.removeEventListener('pointercancel', resetSwipe);
       swipeElement.removeEventListener('pointerleave', resetSwipe);
     };
-  }, [navigateBy]);
+  }, [isOverviewOpen, navigateBy]);
+
+  const handleOpenOverview = () => {
+    setActiveRatingMovieId(null);
+    setTransitionDirection(null);
+    setIsOverviewOpen(true);
+  };
+
+  const handleCloseOverview = () => {
+    setActiveRatingMovieId(null);
+    setTransitionDirection(null);
+    setIsOverviewOpen(false);
+  };
+
+  const handleSelectMovie = (index) => {
+    setCurrentIndex(index);
+    setActiveRatingMovieId(null);
+    setTransitionDirection(null);
+    setIsOverviewOpen(false);
+  };
 
   return (
     <div
@@ -194,29 +217,43 @@ function App() {
     >
       <div className="app-stage">
         <header className="app-header">
-          <button
-            type="button"
-            className="nav-button"
-            onClick={handlePrev}
-            disabled={movies.length <= 1}
-            aria-label="Previous movie"
-          >
-            ‹
-          </button>
           <div className="app-title">Movie Night</div>
           <button
             type="button"
-            className="nav-button"
-            onClick={handleNext}
-            disabled={movies.length <= 1}
-            aria-label="Next movie"
+            className="overview-button"
+            onClick={isOverviewOpen ? handleCloseOverview : handleOpenOverview}
+            aria-label={isOverviewOpen ? 'Tillbaka till filmvy' : 'Visa affischöversikt'}
           >
-            ›
+            {isOverviewOpen ? 'Tillbaka' : 'Översikt'}
           </button>
         </header>
 
-        <main className="app-main" ref={swipeAreaRef}>
-          {activeMovie ? (
+        <main className="app-main" ref={isOverviewOpen ? undefined : swipeAreaRef}>
+          {isOverviewOpen ? (
+            <div className="overview-grid">
+              {movies.map((movie, index) => {
+                const posterUrl = movie.posterUrl ?? null;
+                return (
+                  <button
+                    key={movie.id}
+                    type="button"
+                    className="overview-card"
+                    onClick={() => handleSelectMovie(index)}
+                    aria-label={`Visa ${movie.title}`}
+                  >
+                    <div className="overview-card__poster-shell">
+                      {posterUrl ? (
+                        <img src={posterUrl} alt={movie.title} loading="lazy" />
+                      ) : (
+                        <div className="overview-card__fallback">Ingen affisch</div>
+                      )}
+                    </div>
+                    <span className="overview-card__title">{movie.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : activeMovie ? (
             <div
               key={activeMovie.id}
               className={`movie-stage ${
@@ -234,7 +271,7 @@ function App() {
           )}
         </main>
 
-        {activeMovie && (
+        {!isOverviewOpen && activeMovie && (
           <div className="rating-area">
             <RatingSlider
               value={ratings[activeMovie.id] ?? 5}
