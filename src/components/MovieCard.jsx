@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const placeholderPoster =
   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900"%3E%3Crect width="600" height="900" fill="%23222222"/%3E%3Ctext x="50%25" y="50%25" fill="%23666666" font-size="48" text-anchor="middle" font-family="Inter, sans-serif"%3ENo Poster%3C/text%3E%3C/svg%3E';
@@ -11,15 +11,12 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
-function MovieCard({
-  movie,
-  transitionDirection = 0,
-  dragOffset = 0,
-  isDragging = false,
-  rating = 0,
-  isRatingActive = false,
-}) {
+function MovieCard({ movie, rating = 0, isRatingActive = false }) {
   const [isFlipped, setIsFlipped] = useState(false);
+
+  useEffect(() => {
+    setIsFlipped(false);
+  }, [movie?.id]);
 
   if (!movie) {
     return null;
@@ -31,25 +28,11 @@ function MovieCard({
   const runtime = formatRuntime(movie.runtimeMinutes);
   const overview =
     movie.overview ?? 'Plot summary unavailable right now.';
-  const directionClass =
-    transitionDirection > 0
-      ? 'movie-card-wrapper--forward'
-      : transitionDirection < 0
-        ? 'movie-card-wrapper--backward'
-        : '';
-
-  const clampedOffset = Math.max(-420, Math.min(420, dragOffset ?? 0));
-  const planarRotation = clampedOffset / 18;
-  const flipRotation = clampedOffset / -45;
-  const wrapperStyle = {
-    ...(backgroundImage ? { '--poster-url': backgroundImage } : {}),
-    transform: `translate3d(${clampedOffset}px, 0, 0) rotate(${planarRotation}deg) rotateY(${flipRotation}deg)`,
-    transition: isDragging ? 'none' : 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
-  };
+  const wrapperStyle = backgroundImage ? { '--poster-url': backgroundImage } : {};
   const ratingValue = Number.isFinite(rating) ? rating : 0;
 
   return (
-    <div className={`movie-card-wrapper ${directionClass}`} style={wrapperStyle}>
+    <div className="movie-card-wrapper" style={wrapperStyle}>
       <div className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''}`}>
         <button
           type="button"
