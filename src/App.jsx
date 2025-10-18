@@ -1,8 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { EffectCards, Keyboard } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/effect-cards';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingSlider from './components/RatingSlider.jsx';
@@ -57,21 +53,63 @@ function App() {
     }, {})
   );
   const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
-  const swiperRef = useRef(null);
+  const [transitionDirection, setTransitionDirection] = useState(null);
 
   const activeMovie = movies[currentIndex];
 
-  const navigateBy = (step) => {
-    if (!swiperRef.current) return;
-    if (step > 0) {
-      swiperRef.current.slideNext();
-    } else if (step < 0) {
-      swiperRef.current.slidePrev();
-    }
-  };
+  const navigateBy = useCallback(
+    (step) => {
+      if (!step || movies.length <= 1) return;
+
+      setTransitionDirection(step > 0 ? 'forward' : 'backward');
+      setCurrentIndex((previous) => {
+        const nextIndex = (previous + step + movies.length) % movies.length;
+        return nextIndex;
+      });
+      setActiveRatingMovieId(null);
+    },
+    [movies.length]
+  );
 
   const handlePrev = () => navigateBy(-1);
   const handleNext = () => navigateBy(1);
+
+  useEffect(() => {
+    if (movies.length <= 1) {
+      setTransitionDirection(null);
+    }
+
+    if (movies.length === 0) {
+      setCurrentIndex(0);
+      return;
+    }
+
+    setCurrentIndex((previous) => {
+      if (previous < movies.length) {
+        return previous;
+      }
+      return 0;
+    });
+  }, [movies.length]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.defaultPrevented) return;
+
+      if (event.key === 'ArrowRight') {
+        navigateBy(1);
+      } else if (event.key === 'ArrowLeft') {
+        navigateBy(-1);
+      } else {
+        return;
+      }
+
+      event.preventDefault();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigateBy]);
   const normalizeRating = useCallback((value) => Math.round((value ?? 0) * 10) / 10, []);
 
   const handleRatingChange = (movieId, value) => {
@@ -122,33 +160,22 @@ function App() {
         </header>
 
         <main className="app-main">
-          <Swiper
-            effect="cards"
-            modules={[EffectCards, Keyboard]}
-            keyboard={{ enabled: true }}
-            grabCursor
-            loop={movies.length > 1}
-            onSwiper={(instance) => {
-              swiperRef.current = instance;
-            }}
-            onRealIndexChange={(instance) => {
-              setCurrentIndex(instance.realIndex);
-              setActiveRatingMovieId(null);
-            }}
-            cardsEffect={{ perSlideOffset: 18, perSlideRotate: 5, slideShadows: false }}
-            className="movie-swiper"
-            initialSlide={currentIndex}
-          >
-            {movies.map((movie) => (
-              <SwiperSlide key={movie.id} className="movie-swiper-slide">
-                <MovieCard
-                  movie={movie}
-                  rating={ratings[movie.id] ?? 0}
-                  isRatingActive={activeRatingMovieId === movie.id}
-                />
-              </SwiperSlide>
-            ))}
-          </Swiper>
+          {activeMovie ? (
+            <div
+              key={activeMovie.id}
+              className={`movie-stage ${
+                transitionDirection ? `movie-stage--${transitionDirection}` : ''
+              }`}
+            >
+              <MovieCard
+                movie={activeMovie}
+                rating={ratings[activeMovie.id] ?? 0}
+                isRatingActive={activeRatingMovieId === activeMovie.id}
+              />
+            </div>
+          ) : (
+            <div className="movie-stage movie-stage--empty">Inga filmer att visa.</div>
+          )}
         </main>
 
         {activeMovie && (
