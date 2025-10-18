@@ -11,7 +11,7 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
-function MovieCard({ movie, rating = 0, isRatingActive = false }) {
+function MovieCard({ movie, rating = 0, isRatingActive = false, tilt = { x: 0, y: 0 } }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   useEffect(() => {
@@ -30,10 +30,21 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
     movie.overview ?? 'Plot summary unavailable right now.';
   const wrapperStyle = backgroundImage ? { '--poster-url': backgroundImage } : {};
   const ratingValue = Number.isFinite(rating) ? rating : 0;
+  const tiltX = Number.isFinite(tilt?.x) ? tilt.x : 0;
+  const tiltY = Number.isFinite(tilt?.y) ? tilt.y : 0;
+  const isTilting = Math.abs(tiltX) > 0.01 || Math.abs(tiltY) > 0.01;
+  const cardStyle = {
+    transform: `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`
+  };
 
   return (
     <div className="movie-card-wrapper" style={wrapperStyle}>
-      <div className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''}`}>
+      <div
+        className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''} ${
+          isTilting ? 'movie-card--tilting' : ''
+        }`}
+        style={cardStyle}
+      >
         <button
           type="button"
           className="movie-face movie-face--front"
@@ -61,15 +72,17 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
           className="movie-face movie-face--back"
           onClick={() => setIsFlipped((value) => !value)}
         >
-          <div className="movie-backdrop" />
-          <div className="movie-details">
-            <h2>{movie.title}</h2>
-            <p className="movie-meta">
-              <span>{releaseYear}</span>
-              <span aria-hidden="true">•</span>
-              <span>{runtime}</span>
-            </p>
-            <p className="movie-overview">{overview}</p>
+          <div className="movie-back-shell">
+            <div className="movie-backdrop" />
+            <div className="movie-details">
+              <h2>{movie.title}</h2>
+              <p className="movie-meta">
+                <span>{releaseYear}</span>
+                <span aria-hidden="true">•</span>
+                <span>{runtime}</span>
+              </p>
+              <p className="movie-overview">{overview}</p>
+            </div>
           </div>
         </button>
       </div>

@@ -59,6 +59,46 @@ function App() {
   const [transitionDirection, setTransitionDirection] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const swipeAreaRef = useRef(null);
+  const [cardTilt, setCardTilt] = useState({ x: 0, y: 0 });
+  const tiltTargetRef = useRef(cardTilt);
+  const tiltFrameRef = useRef(null);
+
+  const commitCardTilt = useCallback(() => {
+    tiltFrameRef.current = null;
+    setCardTilt(tiltTargetRef.current);
+  }, []);
+
+  const setCardTiltAnimated = useCallback(
+    (nextTilt) => {
+      tiltTargetRef.current = nextTilt;
+
+      if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+        setCardTilt(nextTilt);
+        return;
+      }
+
+      if (tiltFrameRef.current != null) {
+        return;
+      }
+
+      tiltFrameRef.current = window.requestAnimationFrame(commitCardTilt);
+    },
+    [commitCardTilt]
+  );
+
+  const resetCardTilt = useCallback(() => {
+    setCardTiltAnimated({ x: 0, y: 0 });
+  }, [setCardTiltAnimated]);
+
+  useEffect(
+    () => () => {
+      if (tiltFrameRef.current != null && typeof window !== 'undefined') {
+        window.cancelAnimationFrame(tiltFrameRef.current);
+      }
+      tiltFrameRef.current = null;
+    },
+    []
+  );
 
   const activeMovie = movies[currentIndex];
 
@@ -181,6 +221,7 @@ function App() {
       interactionMode = null;
       hasRatingChanged = false;
       initialRating = ratingsRef.current[activeMovieId] ?? 0;
+      resetCardTilt();
     };
 
     let shouldCancelClick = false;
@@ -197,6 +238,9 @@ function App() {
       interactionMode = event.target.closest('.movie-poster-shell') ? 'pending' : 'navigate';
       hasRatingChanged = false;
       initialRating = ratingsRef.current[activeMovieId] ?? 0;
+      if (interactionMode === 'pending') {
+        setCardTiltAnimated({ x: 0, y: 0 });
+      }
     };
 
     const maybeCommitRating = (event) => {
@@ -218,7 +262,17 @@ function App() {
       const deltaX = event.clientX - startX;
       const deltaY = event.clientY - startY;
 
+      const clampTilt = (value, limit) => Math.min(limit, Math.max(-limit, value));
+      const updateTiltFromDelta = (dx, dy, xLimit = 8, yLimit = 16) => {
+        const nextTilt = {
+          x: clampTilt(-dy / 24, xLimit),
+          y: clampTilt(dx / 18, yLimit),
+        };
+        setCardTiltAnimated(nextTilt);
+      };
+
       if (interactionMode === 'navigate') {
+        updateTiltFromDelta(deltaX, deltaY);
         if (Math.abs(deltaX) < horizontalThreshold || Math.abs(deltaY) > verticalTolerance) {
           return;
         }
@@ -229,11 +283,13 @@ function App() {
       }
 
       if (interactionMode === 'pending') {
+        updateTiltFromDelta(deltaX, deltaY);
         if (Math.abs(deltaY) >= ratingActivationThreshold) {
           const horizontalRatio = Math.abs(deltaX) / Math.max(Math.abs(deltaY), 1);
           if (horizontalRatio <= ratingActivationAngle) {
             interactionMode = 'rate';
             handleRatingInteractionChange(activeMovieId, true);
+            updateTiltFromDelta(deltaX, deltaY, 10, 10);
           } else if (Math.abs(deltaX) >= horizontalThreshold) {
             interactionMode = 'navigate';
           } else {
@@ -250,6 +306,7 @@ function App() {
       }
 
       if (interactionMode === 'navigate') {
+        updateTiltFromDelta(deltaX, deltaY);
         if (Math.abs(deltaX) < horizontalThreshold || Math.abs(deltaY) > verticalTolerance) {
           return;
         }
@@ -260,6 +317,7 @@ function App() {
       }
 
       if (interactionMode === 'rate') {
+        updateTiltFromDelta(deltaX, deltaY, 12, 8);
         const rawValue = initialRating + (startY - event.clientY) / pixelsPerRatingPoint;
         const nextValue = clamp(rawValue, 0, 10);
         hasRatingChanged = true;
@@ -312,7 +370,13 @@ function App() {
     handleRatingInteractionChange,
     isOverviewOpen,
     navigateBy,
+    resetCardTilt,
+    setCardTiltAnimated,
   ]);
+
+  useEffect(() => {
+    resetCardTilt();
+  }, [activeMovie?.id, isOverviewOpen, resetCardTilt]);
 
   const handleOpenOverview = () => {
     setActiveRatingMovieId(null);
@@ -337,7 +401,7 @@ function App() {
     <div
       className={`app-shell ${isOverviewOpen ? 'app-shell--overview' : 'app-shell--focused'}`}
       style={
-        activeMovie?.posterUrl
+        !isOverviewOpen && activeMovie?.posterUrl
           ? { '--active-poster': `url(${activeMovie.posterUrl})` }
           : undefined
       }
@@ -363,6 +427,8 @@ function App() {
             <div className="overview-grid">
               {movies.map((movie, index) => {
                 const posterUrl = movie.posterUrl ?? null;
+                const ratingValue = ratings[movie.id];
+                const hasRating = Number.isFinite(ratingValue);
                 return (
                   <button
                     key={movie.id}
@@ -372,6 +438,14 @@ function App() {
                     aria-label={`Visa ${movie.title}`}
                   >
                     <div className="overview-card__poster-shell">
+                      {hasRating ? (
+                        <div className="overview-card__rating">
+                          <span className="overview-card__rating-value">
+                            {ratingValue.toFixed(1)}
+                          </span>
+                          <span className="overview-card__rating-scale">/10</span>
+                        </div>
+                      ) : null}
                       {posterUrl ? (
                         <img src={posterUrl} alt={movie.title} loading="lazy" />
                       ) : (
@@ -393,6 +467,7 @@ function App() {
                 movie={activeMovie}
                 rating={ratings[activeMovie.id] ?? 0}
                 isRatingActive={activeRatingMovieId === activeMovie.id}
+                tilt={cardTilt}
               />
             </div>
           ) : (
