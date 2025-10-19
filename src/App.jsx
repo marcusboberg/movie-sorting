@@ -1,125 +1,43 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
+import OverviewGrid from './components/OverviewGrid.jsx';
 import DebugConsole from './components/DebugConsole.jsx';
+import { prepareMovies } from './utils/movies.js';
+import { useCardTilt } from './hooks/useCardTilt.js';
+import { useRatings } from './hooks/useRatings.js';
+import { useSwipeInteractions } from './hooks/useSwipeInteractions.js';
 import './App.css';
 
-const basePath = typeof import.meta?.env?.BASE_URL === 'string' ? import.meta.env.BASE_URL : '/';
-const basePathWithTrailingSlash = basePath.endsWith('/') ? basePath : `${basePath}/`;
-
-const resolvePosterPath = (imdbId) => `${basePathWithTrailingSlash}posters/${imdbId}.jpg`;
-
-function normalizeMovie(movie, index) {
-  const fallbackOrder = index + 1;
-  const order = Number.isFinite(movie?.order) ? movie.order : fallbackOrder;
-  const id = movie?.id ?? movie?.imdbId ?? order ?? fallbackOrder;
-  const localPoster = typeof movie?.imdbId === 'string' ? resolvePosterPath(movie.imdbId) : null;
-  const runtimeMinutes = Number.isFinite(movie?.runtime)
-    ? movie.runtime
-    : Number.isFinite(movie?.runtimeMinutes)
-      ? movie.runtimeMinutes
-      : null;
-  const releaseYear = movie?.year ?? movie?.releaseYear ?? '—';
-
-  return {
-    id,
-    order,
-    title: movie?.title ?? 'Untitled',
-    posterUrl: localPoster ?? movie?.image ?? movie?.posterUrl ?? null,
-    runtimeMinutes,
-    releaseYear: releaseYear != null ? String(releaseYear) : '—',
-    overview: (() => {
-      const description = typeof movie?.description === 'string' ? movie.description.trim() : '';
-      if (description) return description;
-
-      const overview = typeof movie?.overview === 'string' ? movie.overview.trim() : '';
-      return overview || null;
-    })(),
-  };
-}
-
 function App() {
-  const movies = useMemo(() => {
-    if (!Array.isArray(rawMovies)) {
-      return [];
-    }
+  const movies = useMemo(() => prepareMovies(rawMovies), []);
+  const {
+    ratings,
+    activeRatingMovieId,
+    handleRatingChange,
+    handleRatingCommit,
+    handleRatingInteractionChange,
+    clearActiveRating,
+    getRating,
+  } = useRatings(movies);
 
-    return rawMovies
-      .filter(Boolean)
-      .map((movie, index) => normalizeMovie(movie, index))
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map(({ order, ...movie }) => movie);
-  }, []);
+  const { cardTilt, setCardTiltAnimated, resetCardTilt } = useCardTilt();
+
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [ratings, setRatings] = useState(() =>
-    movies.reduce((accumulator, movie) => {
-      accumulator[movie.id] = 5;
-      return accumulator;
-    }, {})
-  );
-  const ratingsRef = useRef(ratings);
-  useEffect(() => {
-    ratingsRef.current = ratings;
-  }, [ratings]);
-  const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
   const [transitionDirection, setTransitionDirection] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
-  const swipeAreaRef = useRef(null);
-  const [cardTilt, setCardTilt] = useState({ x: 0, y: 0 });
-  const tiltTargetRef = useRef(cardTilt);
-  const tiltFrameRef = useRef(null);
 
-  const commitCardTilt = useCallback(() => {
-    tiltFrameRef.current = null;
-    setCardTilt(tiltTargetRef.current);
-  }, []);
-
-  const setCardTiltAnimated = useCallback(
-    (nextTilt) => {
-      tiltTargetRef.current = nextTilt;
-
-      if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
-        setCardTilt(nextTilt);
-        return;
-      }
-
-      if (tiltFrameRef.current != null) {
-        return;
-      }
-
-      tiltFrameRef.current = window.requestAnimationFrame(commitCardTilt);
-    },
-    [commitCardTilt]
-  );
-
-  const resetCardTilt = useCallback(() => {
-    setCardTiltAnimated({ x: 0, y: 0 });
-  }, [setCardTiltAnimated]);
-
-  useEffect(
-    () => () => {
-      if (tiltFrameRef.current != null && typeof window !== 'undefined') {
-        window.cancelAnimationFrame(tiltFrameRef.current);
-      }
-      tiltFrameRef.current = null;
-    },
-    []
-  );
-
-  const activeMovie = movies[currentIndex];
+  const activeMovie = movies[currentIndex] ?? null;
 
   const navigateBy = useCallback(
     (step) => {
       if (!step || movies.length <= 1) return;
 
       setTransitionDirection(step > 0 ? 'forward' : 'backward');
-      setCurrentIndex((previous) => {
-        const nextIndex = (previous + step + movies.length) % movies.length;
-        return nextIndex;
-      });
-      setActiveRatingMovieId(null);
+      setCurrentIndex((previous) => (previous + step + movies.length) % movies.length);
+      clearActiveRating();
     },
-    [movies.length]
+    [clearActiveRating, movies.length]
   );
 
   useEffect(() => {
@@ -140,6 +58,18 @@ function App() {
     });
   }, [movies.length]);
 
+  const closeOverview = useCallback(() => {
+    clearActiveRating();
+    setTransitionDirection(null);
+    setIsOverviewOpen(false);
+  }, [clearActiveRating]);
+
+  const openOverview = useCallback(() => {
+    clearActiveRating();
+    setTransitionDirection(null);
+    setIsOverviewOpen(true);
+  }, [clearActiveRating]);
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.defaultPrevented) return;
@@ -149,7 +79,7 @@ function App() {
       } else if (event.key === 'ArrowLeft') {
         navigateBy(-1);
       } else if (event.key === 'Escape' && isOverviewOpen) {
-        setIsOverviewOpen(false);
+        closeOverview();
       } else {
         return;
       }
@@ -159,246 +89,27 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOverviewOpen, navigateBy]);
-  const normalizeRating = useCallback((value) => Math.round((value ?? 0) * 10) / 10, []);
-
-  const handleRatingChange = useCallback(
-    (movieId, value) => {
-      const normalized = normalizeRating(value);
-      setRatings((previous) => {
-        const current = previous[movieId] ?? 0;
-        if (Math.abs(current - normalized) < 0.0001) {
-          return previous;
-        }
-
-        return { ...previous, [movieId]: normalized };
-      });
-    },
-    [normalizeRating]
-  );
-
-  const handleRatingCommit = useCallback(
-    (movieId, value) => {
-      const normalized = normalizeRating(value);
-      setRatings((previous) => {
-        const current = previous[movieId] ?? 0;
-        if (Math.abs(current - normalized) < 0.0001) {
-          return previous;
-        }
-
-        return { ...previous, [movieId]: normalized };
-      });
-      setActiveRatingMovieId(null);
-    },
-    [normalizeRating]
-  );
-
-  const handleRatingInteractionChange = useCallback((movieId, isActive) => {
-    setActiveRatingMovieId(isActive ? movieId : null);
-  }, []);
-
-  useEffect(() => {
-    if (isOverviewOpen) {
-      return undefined;
-    }
-
-    const swipeElement = swipeAreaRef.current;
-    const activeMovieId = activeMovie?.id ?? null;
-    if (!swipeElement || activeMovieId == null) return;
-
-    let pointerId = null;
-    let startX = 0;
-    let startY = 0;
-    let interactionMode = null;
-    let initialRating = ratingsRef.current[activeMovieId] ?? 0;
-    let hasRatingChanged = false;
-    const horizontalThreshold = 48;
-    const verticalTolerance = 60;
-    const ratingActivationThreshold = 12;
-    const ratingActivationAngle = Math.tan((12 * Math.PI) / 180);
-    const pixelsPerRatingPoint = 28;
-
-    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-    const resetInteraction = () => {
-      pointerId = null;
-      startX = 0;
-      startY = 0;
-      interactionMode = null;
-      hasRatingChanged = false;
-      initialRating = ratingsRef.current[activeMovieId] ?? 0;
-      resetCardTilt();
-    };
-
-    let shouldCancelClick = false;
-
-    const handlePointerDown = (event) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) {
-        return;
-      }
-
-      shouldCancelClick = false;
-      pointerId = event.pointerId;
-      startX = event.clientX;
-      startY = event.clientY;
-      interactionMode = event.target.closest('.movie-poster-shell') ? 'pending' : 'navigate';
-      hasRatingChanged = false;
-      initialRating = ratingsRef.current[activeMovieId] ?? 0;
-      if (interactionMode === 'pending') {
-        setCardTiltAnimated({ x: 0, y: 0 });
-      }
-    };
-
-    const maybeCommitRating = (event) => {
-      if (interactionMode !== 'rate' || !hasRatingChanged) {
-        return;
-      }
-
-      const deltaY = event.clientY - startY;
-      const rawValue = initialRating + (startY - event.clientY) / pixelsPerRatingPoint;
-      const nextValue = clamp(rawValue, 0, 10);
-      handleRatingCommit(activeMovieId, nextValue);
-      handleRatingInteractionChange(activeMovieId, false);
-      shouldCancelClick = true;
-    };
-
-    const handlePointerMove = (event) => {
-      if (event.pointerId !== pointerId || !interactionMode) return;
-
-      const deltaX = event.clientX - startX;
-      const deltaY = event.clientY - startY;
-
-      const clampTilt = (value, limit) => Math.min(limit, Math.max(-limit, value));
-      const updateTiltFromDelta = (dx, dy, xLimit = 8, yLimit = 16) => {
-        const nextTilt = {
-          x: clampTilt(-dy / 24, xLimit),
-          y: clampTilt(dx / 18, yLimit),
-        };
-        setCardTiltAnimated(nextTilt);
-      };
-
-      if (interactionMode === 'navigate') {
-        updateTiltFromDelta(deltaX, deltaY);
-        if (Math.abs(deltaX) < horizontalThreshold || Math.abs(deltaY) > verticalTolerance) {
-          return;
-        }
-
-        navigateBy(deltaX < 0 ? 1 : -1);
-        resetInteraction();
-        return;
-      }
-
-      if (interactionMode === 'pending') {
-        updateTiltFromDelta(deltaX, deltaY);
-        if (Math.abs(deltaY) >= ratingActivationThreshold) {
-          const horizontalRatio = Math.abs(deltaX) / Math.max(Math.abs(deltaY), 1);
-          if (horizontalRatio <= ratingActivationAngle) {
-            interactionMode = 'rate';
-            handleRatingInteractionChange(activeMovieId, true);
-            updateTiltFromDelta(deltaX, deltaY, 10, 10);
-          } else if (Math.abs(deltaX) >= horizontalThreshold) {
-            interactionMode = 'navigate';
-          } else {
-            return;
-          }
-        } else if (
-          Math.abs(deltaX) >= horizontalThreshold &&
-          Math.abs(deltaY) <= verticalTolerance
-        ) {
-          interactionMode = 'navigate';
-        } else {
-          return;
-        }
-      }
-
-      if (interactionMode === 'navigate') {
-        updateTiltFromDelta(deltaX, deltaY);
-        if (Math.abs(deltaX) < horizontalThreshold || Math.abs(deltaY) > verticalTolerance) {
-          return;
-        }
-
-        navigateBy(deltaX < 0 ? 1 : -1);
-        resetInteraction();
-        return;
-      }
-
-      if (interactionMode === 'rate') {
-        updateTiltFromDelta(deltaX, deltaY, 12, 8);
-        const rawValue = initialRating + (startY - event.clientY) / pixelsPerRatingPoint;
-        const nextValue = clamp(rawValue, 0, 10);
-        hasRatingChanged = true;
-        handleRatingChange(activeMovieId, nextValue);
-        event.preventDefault();
-      }
-    };
-
-    const handlePointerUp = (event) => {
-      if (event.pointerId !== pointerId) return;
-      maybeCommitRating(event);
-      resetInteraction();
-    };
-
-    const handlePointerCancel = (event) => {
-      if (event.pointerId !== pointerId) return;
-      if (interactionMode === 'rate' && hasRatingChanged) {
-        handleRatingInteractionChange(activeMovieId, false);
-        shouldCancelClick = true;
-      }
-      resetInteraction();
-    };
-
-    const handleClickCapture = (event) => {
-      if (!shouldCancelClick) return;
-      shouldCancelClick = false;
-      event.stopPropagation();
-      event.preventDefault();
-    };
-
-    swipeElement.addEventListener('pointerdown', handlePointerDown, { passive: false });
-    swipeElement.addEventListener('pointermove', handlePointerMove, { passive: false });
-    swipeElement.addEventListener('pointerup', handlePointerUp, { passive: false });
-    swipeElement.addEventListener('pointercancel', handlePointerCancel, { passive: false });
-    swipeElement.addEventListener('pointerleave', handlePointerCancel, { passive: false });
-    swipeElement.addEventListener('click', handleClickCapture, true);
-
-    return () => {
-      swipeElement.removeEventListener('pointerdown', handlePointerDown);
-      swipeElement.removeEventListener('pointermove', handlePointerMove);
-      swipeElement.removeEventListener('pointerup', handlePointerUp);
-      swipeElement.removeEventListener('pointercancel', handlePointerCancel);
-      swipeElement.removeEventListener('pointerleave', handlePointerCancel);
-      swipeElement.removeEventListener('click', handleClickCapture, true);
-    };
-  }, [
-    activeMovie?.id,
-    handleRatingChange,
-    handleRatingCommit,
-    handleRatingInteractionChange,
-    isOverviewOpen,
-    navigateBy,
-    resetCardTilt,
-    setCardTiltAnimated,
-  ]);
+  }, [closeOverview, isOverviewOpen, navigateBy]);
 
   useEffect(() => {
     resetCardTilt();
   }, [activeMovie?.id, isOverviewOpen, resetCardTilt]);
 
-  const handleOpenOverview = () => {
-    setActiveRatingMovieId(null);
-    setTransitionDirection(null);
-    setIsOverviewOpen(true);
-  };
-
-  const handleCloseOverview = () => {
-    setActiveRatingMovieId(null);
-    setTransitionDirection(null);
-    setIsOverviewOpen(false);
-  };
+  const swipeAreaRef = useSwipeInteractions({
+    isEnabled: !isOverviewOpen,
+    activeMovieId: activeMovie?.id ?? null,
+    getRating,
+    onNavigate: navigateBy,
+    onRatingChange: handleRatingChange,
+    onRatingCommit: handleRatingCommit,
+    onRatingInteractionChange: handleRatingInteractionChange,
+    resetCardTilt,
+    setCardTiltAnimated,
+  });
 
   const handleSelectMovie = (index) => {
     setCurrentIndex(index);
-    setActiveRatingMovieId(null);
+    clearActiveRating();
     setTransitionDirection(null);
     setIsOverviewOpen(false);
   };
@@ -418,7 +129,7 @@ function App() {
           <button
             type="button"
             className="overview-button"
-            onClick={isOverviewOpen ? handleCloseOverview : handleOpenOverview}
+            onClick={isOverviewOpen ? closeOverview : openOverview}
             aria-label={isOverviewOpen ? 'Tillbaka till filmvy' : 'Visa affischöversikt'}
           >
             {isOverviewOpen ? 'Tillbaka' : 'Översikt'}
@@ -430,38 +141,7 @@ function App() {
           ref={isOverviewOpen ? undefined : swipeAreaRef}
         >
           {isOverviewOpen ? (
-            <div className="overview-grid">
-              {movies.map((movie, index) => {
-                const posterUrl = movie.posterUrl ?? null;
-                const ratingValue = ratings[movie.id];
-                const hasRating = Number.isFinite(ratingValue);
-                return (
-                  <button
-                    key={movie.id}
-                    type="button"
-                    className="overview-card"
-                    onClick={() => handleSelectMovie(index)}
-                    aria-label={`Visa ${movie.title}`}
-                  >
-                    <div className="overview-card__poster-shell">
-                      {hasRating ? (
-                        <div className="overview-card__rating">
-                          <span className="overview-card__rating-value">
-                            {ratingValue.toFixed(1)}
-                          </span>
-                          <span className="overview-card__rating-scale">/10</span>
-                        </div>
-                      ) : null}
-                      {posterUrl ? (
-                        <img src={posterUrl} alt={movie.title} loading="lazy" />
-                      ) : (
-                        <div className="overview-card__fallback">Ingen affisch</div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <OverviewGrid movies={movies} ratings={ratings} onSelectMovie={handleSelectMovie} />
           ) : activeMovie ? (
             <div
               key={activeMovie.id}
