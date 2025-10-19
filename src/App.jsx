@@ -4,11 +4,16 @@ import MovieCard from './components/MovieCard.jsx';
 import DebugConsole from './components/DebugConsole.jsx';
 import './App.css';
 
+const basePath = typeof import.meta?.env?.BASE_URL === 'string' ? import.meta.env.BASE_URL : '/';
+const basePathWithTrailingSlash = basePath.endsWith('/') ? basePath : `${basePath}/`;
+
+const resolvePosterPath = (imdbId) => `${basePathWithTrailingSlash}posters/${imdbId}.jpg`;
+
 function normalizeMovie(movie, index) {
   const fallbackOrder = index + 1;
   const order = Number.isFinite(movie?.order) ? movie.order : fallbackOrder;
   const id = movie?.id ?? movie?.imdbId ?? order ?? fallbackOrder;
-  const localPoster = typeof movie?.imdbId === 'string' ? `/posters/${movie.imdbId}.jpg` : null;
+  const localPoster = typeof movie?.imdbId === 'string' ? resolvePosterPath(movie.imdbId) : null;
   const runtimeMinutes = Number.isFinite(movie?.runtime)
     ? movie.runtime
     : Number.isFinite(movie?.runtimeMinutes)
