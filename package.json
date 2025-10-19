@@ -16,5 +16,11 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^5.2.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "postbuild": "cp docs/index.html docs/404.html || copy docs\\index.html docs\\404.html",
+    "preview": "vite preview"
   }
 }
