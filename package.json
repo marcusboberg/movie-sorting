@@ -3,12 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "postbuild": "node scripts/copy-server-config.js",
-    "preview": "vite preview"
-  },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -20,7 +14,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "postbuild": "cp docs/index.html docs/404.html || copy docs\\index.html docs\\404.html",
+    "postbuild": "cp dist/index.html dist/404.html || copy dist\\index.html dist\\404.html",
     "preview": "vite preview"
   }
 }

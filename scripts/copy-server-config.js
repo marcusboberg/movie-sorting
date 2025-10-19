@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
 const sourcePath = resolve(projectRoot, 'public', '.htaccess');
-const outputDir = resolve(projectRoot, 'docs');
+const outputDir = resolve(projectRoot, 'dist');
 const destinationPath = resolve(outputDir, '.htaccess');
 
 if (!existsSync(sourcePath)) {
