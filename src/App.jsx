@@ -25,7 +25,6 @@ function App() {
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [transitionDirection, setTransitionDirection] = useState(null);
-  const [previousMovie, setPreviousMovie] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
 
   const activeMovie = movies[currentIndex] ?? null;
@@ -34,24 +33,11 @@ function App() {
     (step) => {
       if (!step || movies.length <= 1) return;
 
-      const direction = step > 0 ? 'forward' : 'backward';
-      setTransitionDirection(direction);
-      setCurrentIndex((previous) => {
-        const nextIndex = (previous + step + movies.length) % movies.length;
-        const exitingMovie = movies[previous] ?? null;
-        const enteringMovie = movies[nextIndex] ?? null;
-
-        if (exitingMovie?.id !== enteringMovie?.id) {
-          setPreviousMovie(exitingMovie);
-        } else {
-          setPreviousMovie(null);
-        }
-
-        return nextIndex;
-      });
+      setTransitionDirection(step > 0 ? 'forward' : 'backward');
+      setCurrentIndex((previous) => (previous + step + movies.length) % movies.length);
       clearActiveRating();
     },
-    [clearActiveRating, movies]
+    [clearActiveRating, movies.length]
   );
 
   useEffect(() => {
@@ -75,14 +61,12 @@ function App() {
   const closeOverview = useCallback(() => {
     clearActiveRating();
     setTransitionDirection(null);
-    setPreviousMovie(null);
     setIsOverviewOpen(false);
   }, [clearActiveRating]);
 
   const openOverview = useCallback(() => {
     clearActiveRating();
     setTransitionDirection(null);
-    setPreviousMovie(null);
     setIsOverviewOpen(true);
   }, [clearActiveRating]);
 
@@ -127,30 +111,8 @@ function App() {
     setCurrentIndex(index);
     clearActiveRating();
     setTransitionDirection(null);
-    setPreviousMovie(null);
     setIsOverviewOpen(false);
   };
-
-  const handleStageAnimationEnd = useCallback((event) => {
-    if (!event.target.classList?.contains('movie-stage__card--incoming')) {
-      return;
-    }
-
-    if (!['movie-stage-slide-in-right', 'movie-stage-slide-in-left'].includes(event.animationName)) {
-      return;
-    }
-
-    setPreviousMovie(null);
-    setTransitionDirection(null);
-  }, []);
-
-  const stageClassNames = [
-    'movie-stage',
-    previousMovie ? 'movie-stage--transitioning' : null,
-    previousMovie && transitionDirection ? `movie-stage--${transitionDirection}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
 
   return (
     <div
@@ -181,31 +143,18 @@ function App() {
           {isOverviewOpen ? (
             <OverviewGrid movies={movies} ratings={ratings} onSelectMovie={handleSelectMovie} />
           ) : activeMovie ? (
-            <div className={stageClassNames} onAnimationEnd={handleStageAnimationEnd}>
-              {previousMovie ? (
-                <div className="movie-stage__card movie-stage__card--outgoing" key={previousMovie.id}>
-                  <MovieCard
-                    movie={previousMovie}
-                    rating={ratings[previousMovie.id] ?? 0}
-                    isRatingActive={false}
-                    tilt={{ x: 0, y: 0 }}
-                  />
-                </div>
-              ) : null}
-
-              <div
-                className={`movie-stage__card ${
-                  previousMovie ? 'movie-stage__card--incoming' : 'movie-stage__card--static'
-                }`}
-                key={activeMovie.id}
-              >
-                <MovieCard
-                  movie={activeMovie}
-                  rating={ratings[activeMovie.id] ?? 0}
-                  isRatingActive={activeRatingMovieId === activeMovie.id}
-                  tilt={cardTilt}
-                />
-              </div>
+            <div
+              key={activeMovie.id}
+              className={`movie-stage ${
+                transitionDirection ? `movie-stage--${transitionDirection}` : ''
+              }`}
+            >
+              <MovieCard
+                movie={activeMovie}
+                rating={ratings[activeMovie.id] ?? 0}
+                isRatingActive={activeRatingMovieId === activeMovie.id}
+                tilt={cardTilt}
+              />
             </div>
           ) : (
             <div className="movie-stage movie-stage--empty">Inga filmer att visa.</div>
