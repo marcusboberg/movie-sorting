@@ -29,7 +29,8 @@ domain `movies.marcusboberg.se` online without any manual uploads.
 1. **Enable GitHub Pages** – in _Settings → Pages_, choose "GitHub Actions" as the deployment source. The workflow in
    [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) will now be allowed to publish.
 2. **Commit and push** – any push to `main` (or a manual workflow dispatch) runs the build and deploys the contents of `dist/`
-   to the GitHub Pages environment.
+   to the GitHub Pages environment. Since the Pages site is generated during the workflow run, there is no need to keep a
+   prebuilt `docs/` folder in the repository anymore.
 3. **Custom domain** – the file [`public/CNAME`](public/CNAME) is bundled automatically so GitHub Pages keeps
    `movies.marcusboberg.se` configured. Confirm that your DNS provider has a CNAME record pointing the `movies` subdomain to
    `YOUR_GITHUB_USERNAME.github.io`. GitHub will provision the TLS certificate after the first deployment.
