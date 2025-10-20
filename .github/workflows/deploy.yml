@@ -32,10 +32,9 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      # Om du bygger till docs/, peka här på ./docs
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs
+          path: ./dist
 
   deploy:
     runs-on: ubuntu-latest
