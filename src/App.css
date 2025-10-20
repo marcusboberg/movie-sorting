@@ -247,33 +247,6 @@ p {
   perspective: 2000px;
 }
 
-.movie-card-wrapper::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 26px;
-  background: radial-gradient(circle at 50% 25%, rgba(255, 255, 255, 0.28), rgba(0, 0, 0, 0));
-  filter: blur(40px);
-  opacity: 0.6;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.movie-card-wrapper::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 26px;
-  background: var(--poster-url, none);
-  background-size: cover;
-  background-position: center;
-  filter: blur(20px);
-  transform: scale(1.06) translateY(4px);
-  opacity: 0.45;
-  pointer-events: none;
-  z-index: 0;
-}
-
 .movie-card {
   position: relative;
   width: 100%;

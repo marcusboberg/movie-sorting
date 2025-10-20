@@ -23,16 +23,14 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
   }
 
   const posterUrl = movie.posterUrl ?? placeholderPoster;
-  const backgroundImage = movie.posterUrl ? `url(${movie.posterUrl})` : undefined;
   const releaseYear = movie.releaseYear ?? '—';
   const runtime = formatRuntime(movie.runtimeMinutes);
   const overview =
     movie.overview ?? 'Plot summary unavailable right now.';
-  const wrapperStyle = backgroundImage ? { '--poster-url': backgroundImage } : {};
   const ratingValue = Number.isFinite(rating) ? rating : 0;
 
   return (
-    <div className="movie-card-wrapper" style={wrapperStyle}>
+    <div className="movie-card-wrapper">
       <div className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''}`}>
         <button
           type="button"

@@ -185,6 +185,21 @@ function App() {
 
     let shouldCancelClick = false;
 
+    const releasePointerCapture = () => {
+      if (pointerId == null) {
+        return;
+      }
+
+      const hasPointerCapture =
+        typeof swipeElement.hasPointerCapture === 'function'
+          ? swipeElement.hasPointerCapture(pointerId)
+          : true;
+
+      if (hasPointerCapture && typeof swipeElement.releasePointerCapture === 'function') {
+        swipeElement.releasePointerCapture(pointerId);
+      }
+    };
+
     const handlePointerDown = (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) {
         return;
@@ -197,6 +212,10 @@ function App() {
       interactionMode = event.target.closest('.movie-poster-shell') ? 'pending' : 'navigate';
       hasRatingChanged = false;
       initialRating = ratingsRef.current[activeMovieId] ?? 0;
+
+      if (typeof swipeElement.setPointerCapture === 'function') {
+        swipeElement.setPointerCapture(event.pointerId);
+      }
     };
 
     const maybeCommitRating = (event) => {
@@ -224,6 +243,7 @@ function App() {
         }
 
         navigateBy(deltaX < 0 ? 1 : -1);
+        releasePointerCapture();
         resetInteraction();
         return;
       }
@@ -255,6 +275,7 @@ function App() {
         }
 
         navigateBy(deltaX < 0 ? 1 : -1);
+        releasePointerCapture();
         resetInteraction();
         return;
       }
@@ -271,6 +292,7 @@ function App() {
     const handlePointerUp = (event) => {
       if (event.pointerId !== pointerId) return;
       maybeCommitRating(event);
+      releasePointerCapture();
       resetInteraction();
     };
 
@@ -280,6 +302,7 @@ function App() {
         handleRatingInteractionChange(activeMovieId, false);
         shouldCancelClick = true;
       }
+      releasePointerCapture();
       resetInteraction();
     };
 
