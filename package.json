@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "postbuild": "node scripts/copy-server-config.js",
     "preview": "vite preview"
   },
   "dependencies": {
