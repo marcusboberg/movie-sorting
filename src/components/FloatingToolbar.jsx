@@ -13,6 +13,8 @@ function FloatingToolbar({
   onToggleScoreOverlay,
   filterOptions = [],
   sortOptions = [],
+  scoreRange = [0, 10],
+  onScoreRangeChange,
 }) {
   const surfaceRef = useRef(null);
   const previousModeRef = useRef(mode);
@@ -69,7 +71,7 @@ function FloatingToolbar({
     if (typeof onFilterChange === 'function') {
       onFilterChange(value);
     }
-    setOpenMenu(null);
+    setOpenMenu(value === 'scoreRange' ? 'filter' : null);
   };
 
   const handleSortChange = (value) => {
@@ -77,6 +79,57 @@ function FloatingToolbar({
       onSortChange(value);
     }
     setOpenMenu(null);
+  };
+
+  const sanitizedScoreRange = useMemo(() => {
+    const [rawMin = 0, rawMax = 10] = Array.isArray(scoreRange) ? scoreRange : [0, 10];
+    const min = Number.isFinite(rawMin) ? rawMin : Number.parseFloat(rawMin) || 0;
+    const max = Number.isFinite(rawMax) ? rawMax : Number.parseFloat(rawMax) || 10;
+    const clampedMin = Math.min(Math.max(0, min), 10);
+    const clampedMax = Math.min(10, Math.max(clampedMin, max));
+    return [clampedMin, clampedMax];
+  }, [scoreRange]);
+
+  const [scoreRangeMin, scoreRangeMax] = sanitizedScoreRange;
+
+  const updateScoreRange = (type, rawValue) => {
+    if (typeof onScoreRangeChange !== 'function') {
+      return;
+    }
+
+    const numeric =
+      typeof rawValue === 'number' && Number.isFinite(rawValue)
+        ? rawValue
+        : Number.parseFloat(rawValue);
+
+    if (!Number.isFinite(numeric)) {
+      if (type === 'min') {
+        onScoreRangeChange([0, scoreRangeMax]);
+      } else {
+        onScoreRangeChange([scoreRangeMin, 10]);
+      }
+      return;
+    }
+
+    if (type === 'min') {
+      const nextMin = Math.min(Math.max(0, numeric), 10);
+      const nextMax = Math.max(nextMin, scoreRangeMax);
+      onScoreRangeChange([nextMin, nextMax]);
+    } else {
+      const nextMax = Math.min(10, Math.max(0, numeric));
+      const nextMin = Math.min(scoreRangeMin, nextMax);
+      const safeMin = Math.min(nextMin, nextMax);
+      const safeMax = Math.max(nextMax, safeMin);
+      onScoreRangeChange([safeMin, safeMax]);
+    }
+  };
+
+  const handleScoreRangeSliderChange = (type) => (event) => {
+    updateScoreRange(type, event.target.value);
+  };
+
+  const handleScoreRangeNumberChange = (type) => (event) => {
+    updateScoreRange(type, event.target.value);
   };
 
   const isPosterView = mode !== 'overview';
@@ -130,6 +183,72 @@ function FloatingToolbar({
                       {option.label}
                     </button>
                   ))}
+                  {filterOption === 'scoreRange' ? (
+                    <div
+                      className="floating-toolbar__score-range"
+                      role="group"
+                      aria-label="Begränsa betygsspann"
+                    >
+                      <div className="floating-toolbar__score-range-header">
+                        <span className="floating-toolbar__score-range-title">Score span</span>
+                        <span className="floating-toolbar__score-range-value">
+                          {scoreRangeMin.toFixed(1)} – {scoreRangeMax.toFixed(1)}
+                        </span>
+                      </div>
+                      <div className="floating-toolbar__score-range-sliders">
+                        <label className="floating-toolbar__score-range-field">
+                          <span>Min</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            step="0.5"
+                            value={scoreRangeMin}
+                            onChange={handleScoreRangeSliderChange('min')}
+                            aria-label="Minsta score"
+                          />
+                        </label>
+                        <label className="floating-toolbar__score-range-field">
+                          <span>Max</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            step="0.5"
+                            value={scoreRangeMax}
+                            onChange={handleScoreRangeSliderChange('max')}
+                            aria-label="Högsta score"
+                          />
+                        </label>
+                      </div>
+                      <div className="floating-toolbar__score-range-inputs">
+                        <label className="floating-toolbar__score-range-input">
+                          <span>Min</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={scoreRangeMin}
+                            onChange={handleScoreRangeNumberChange('min')}
+                            aria-label="Minsta score som visas"
+                          />
+                        </label>
+                        <label className="floating-toolbar__score-range-input">
+                          <span>Max</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={scoreRangeMax}
+                            onChange={handleScoreRangeNumberChange('max')}
+                            aria-label="Högsta score som visas"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
