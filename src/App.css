@@ -16,6 +16,7 @@ p {
   overflow-x: hidden;
   overflow-y: hidden;
   touch-action: none;
+  isolation: isolate;
 }
 
 @supports (padding-top: env(safe-area-inset-top)) {
@@ -32,10 +33,13 @@ p {
 
 .app-shell::before {
   content: '';
-  position: absolute;
-  inset: -80px;
+  position: fixed;
+  top: -35vh;
+  bottom: -35vh;
+  left: -20vw;
+  right: -20vw;
   background: var(--active-poster, none) center / cover no-repeat;
-  filter: blur(120px) saturate(140%);
+  filter: blur(140px) saturate(140%);
   transform: scale(1.1);
   opacity: 0.6;
   pointer-events: none;
@@ -44,8 +48,11 @@ p {
 
 .app-shell::after {
   content: '';
-  position: absolute;
-  inset: 0;
+  position: fixed;
+  top: -35vh;
+  bottom: -35vh;
+  left: -20vw;
+  right: -20vw;
   background: radial-gradient(circle at 50% 15%, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6) 60%);
   pointer-events: none;
   z-index: 0;
