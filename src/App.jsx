@@ -59,8 +59,47 @@ function App() {
   const [transitionDirection, setTransitionDirection] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const swipeAreaRef = useRef(null);
+  const appShellRef = useRef(null);
 
   const activeMovie = movies[currentIndex];
+  const nextMovie = movies.length > 1 ? movies[(currentIndex + 1) % movies.length] : null;
+
+  useEffect(() => {
+    const appShellElement = appShellRef.current;
+    if (!appShellElement) {
+      return undefined;
+    }
+
+    if (!nextMovie?.posterUrl) {
+      appShellElement.style.removeProperty('--next-poster');
+      return undefined;
+    }
+
+    let isCancelled = false;
+    const image = new Image();
+    image.loading = 'eager';
+
+    const applyNextPoster = () => {
+      if (isCancelled) return;
+      appShellElement.style.setProperty('--next-poster', `url(${nextMovie.posterUrl})`);
+    };
+
+    const handleError = () => {
+      if (isCancelled) return;
+      appShellElement.style.removeProperty('--next-poster');
+    };
+
+    image.addEventListener('load', applyNextPoster, { once: true });
+    image.addEventListener('error', handleError, { once: true });
+    image.src = nextMovie.posterUrl;
+    image.decode?.().catch(() => {});
+
+    return () => {
+      isCancelled = true;
+      image.removeEventListener('load', applyNextPoster);
+      image.removeEventListener('error', handleError);
+    };
+  }, [nextMovie?.posterUrl]);
 
   const navigateBy = useCallback(
     (step) => {
@@ -359,6 +398,7 @@ function App() {
   return (
     <div
       className={`app-shell ${isOverviewOpen ? 'app-shell--overview' : 'app-shell--focused'}`}
+      ref={appShellRef}
       style={
         activeMovie?.posterUrl
           ? { '--active-poster': `url(${activeMovie.posterUrl})` }
