@@ -532,7 +532,7 @@ function App() {
           : undefined
       }
     >
-      <div className="app-stage">
+      <div className={`app-stage ${isOverviewOpen ? 'app-stage--overview' : 'app-stage--focused'}`}>
         <main
           className={`app-main ${isOverviewOpen ? 'app-main--overview' : 'app-main--focused'}`}
           ref={isOverviewOpen ? undefined : swipeAreaRef}
