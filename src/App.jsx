@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
+import FloatingToolbar from './components/FloatingToolbar.jsx';
 import './App.css';
 
 function normalizeMovie(movie, index) {
@@ -32,6 +33,20 @@ function normalizeMovie(movie, index) {
   };
 }
 
+const filterOptions = [
+  { value: 'all', label: 'Alla filmer' },
+  { value: 'scored', label: 'Endast med betyg' },
+  { value: 'unscored', label: 'Endast utan betyg' },
+];
+
+const sortOptions = [
+  { value: 'scoreSpan', label: 'Score (span)' },
+  { value: 'title', label: 'Titel' },
+  { value: 'year', label: 'År' },
+  { value: 'runtime', label: 'Speltid' },
+  { value: 'score', label: 'Score' },
+];
+
 function App() {
   const movies = useMemo(() => {
     if (!Array.isArray(rawMovies)) {
@@ -47,7 +62,7 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [ratings, setRatings] = useState(() =>
     movies.reduce((accumulator, movie) => {
-      accumulator[movie.id] = 5;
+      accumulator[movie.id] = 0;
       return accumulator;
     }, {})
   );
@@ -58,11 +73,34 @@ function App() {
   const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
   const [transitionDirection, setTransitionDirection] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
+  const [hasUserRatingMap, setHasUserRatingMap] = useState(() =>
+    movies.reduce((accumulator, movie) => {
+      accumulator[movie.id] = false;
+      return accumulator;
+    }, {})
+  );
+  const [overviewFilter, setOverviewFilter] = useState('all');
+  const [overviewSort, setOverviewSort] = useState('scoreSpan');
+  const [isScoreOverlayVisible, setIsScoreOverlayVisible] = useState(true);
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
 
   const activeMovie = movies[currentIndex];
   const nextMovie = movies.length > 1 ? movies[(currentIndex + 1) % movies.length] : null;
+
+  const withToolbarTransition = useCallback((update) => {
+    const apply = () => {
+      update();
+    };
+
+    if (typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+      document.startViewTransition(() => {
+        apply();
+      });
+    } else {
+      apply();
+    }
+  }, []);
 
   useEffect(() => {
     const appShellElement = appShellRef.current;
@@ -180,6 +218,14 @@ function App() {
         }
 
         return { ...previous, [movieId]: normalized };
+      });
+      setHasUserRatingMap((previous) => {
+        const hasScore = normalized > 0.0001;
+        if ((previous[movieId] ?? false) === hasScore) {
+          return previous;
+        }
+
+        return { ...previous, [movieId]: hasScore };
       });
       setActiveRatingMovieId(null);
     },
@@ -377,23 +423,82 @@ function App() {
   ]);
 
   const handleOpenOverview = () => {
-    setActiveRatingMovieId(null);
-    setTransitionDirection(null);
-    setIsOverviewOpen(true);
+    withToolbarTransition(() => {
+      setActiveRatingMovieId(null);
+      setTransitionDirection(null);
+      setIsOverviewOpen(true);
+    });
   };
 
   const handleCloseOverview = () => {
-    setActiveRatingMovieId(null);
-    setTransitionDirection(null);
-    setIsOverviewOpen(false);
+    withToolbarTransition(() => {
+      setActiveRatingMovieId(null);
+      setTransitionDirection(null);
+      setIsOverviewOpen(false);
+    });
   };
 
   const handleSelectMovie = (index) => {
-    setCurrentIndex(index);
-    setActiveRatingMovieId(null);
-    setTransitionDirection(null);
-    setIsOverviewOpen(false);
+    withToolbarTransition(() => {
+      setCurrentIndex(index);
+      setActiveRatingMovieId(null);
+      setTransitionDirection(null);
+      setIsOverviewOpen(false);
+    });
   };
+
+  const overviewMovies = useMemo(() => {
+    const base = movies.map((movie, index) => {
+      const ratingValue = ratings[movie.id] ?? 0;
+      const hasScore = hasUserRatingMap[movie.id] ?? false;
+      return { movie, index, ratingValue, hasScore };
+    });
+
+    const filtered = base.filter(({ hasScore }) => {
+      if (overviewFilter === 'scored') {
+        return hasScore;
+      }
+
+      if (overviewFilter === 'unscored') {
+        return !hasScore;
+      }
+
+      return true;
+    });
+
+    const parseYear = (value) => {
+      const numeric = Number.parseInt(value, 10);
+      return Number.isFinite(numeric) ? numeric : -Infinity;
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+      switch (overviewSort) {
+        case 'title':
+          return a.movie.title.localeCompare(b.movie.title, undefined, { sensitivity: 'base' });
+        case 'year':
+          return parseYear(b.movie.releaseYear) - parseYear(a.movie.releaseYear);
+        case 'runtime':
+          return (b.movie.runtimeMinutes ?? 0) - (a.movie.runtimeMinutes ?? 0);
+        case 'score':
+          return (b.ratingValue ?? 0) - (a.ratingValue ?? 0);
+        case 'scoreSpan': {
+          const spanA = Math.abs((a.ratingValue ?? 0) - 5);
+          const spanB = Math.abs((b.ratingValue ?? 0) - 5);
+          if (spanB !== spanA) {
+            return spanB - spanA;
+          }
+          if (a.hasScore !== b.hasScore) {
+            return Number(b.hasScore) - Number(a.hasScore);
+          }
+          return (b.ratingValue ?? 0) - (a.ratingValue ?? 0);
+        }
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [hasUserRatingMap, movies, overviewFilter, overviewSort, ratings]);
 
   return (
     <div
@@ -406,40 +511,38 @@ function App() {
       }
     >
       <div className="app-stage">
-        <header className="app-header">
-          <div className="app-title">Movie Night</div>
-          <button
-            type="button"
-            className="overview-button"
-            onClick={isOverviewOpen ? handleCloseOverview : handleOpenOverview}
-            aria-label={isOverviewOpen ? 'Tillbaka till filmvy' : 'Visa affischöversikt'}
-          >
-            {isOverviewOpen ? 'Tillbaka' : 'Översikt'}
-          </button>
-        </header>
-
         <main
           className={`app-main ${isOverviewOpen ? 'app-main--overview' : 'app-main--focused'}`}
           ref={isOverviewOpen ? undefined : swipeAreaRef}
         >
           {isOverviewOpen ? (
             <div className="overview-grid">
-              {movies.map((movie, index) => {
+              {overviewMovies.map(({ movie, index: movieIndex, ratingValue, hasScore }) => {
                 const posterUrl = movie.posterUrl ?? null;
                 return (
                   <button
                     key={movie.id}
                     type="button"
                     className="overview-card"
-                    onClick={() => handleSelectMovie(index)}
+                    onClick={() => handleSelectMovie(movieIndex)}
                     aria-label={`Visa ${movie.title}`}
                   >
-                    <div className="overview-card__poster-shell">
+                    <div
+                      className={`overview-card__poster-shell ${
+                        isScoreOverlayVisible && hasScore ? 'overview-card__poster-shell--with-score' : ''
+                      }`}
+                    >
                       {posterUrl ? (
                         <img src={posterUrl} alt={movie.title} loading="lazy" />
                       ) : (
                         <div className="overview-card__fallback">Ingen affisch</div>
                       )}
+                      {isScoreOverlayVisible && hasScore ? (
+                        <div className="overview-card__rating" aria-hidden="true">
+                          <span className="overview-card__rating-value">{ratingValue.toFixed(1)}</span>
+                          <span className="overview-card__rating-scale">/10</span>
+                        </div>
+                      ) : null}
                     </div>
                   </button>
                 );
@@ -464,6 +567,19 @@ function App() {
         </main>
 
       </div>
+      <FloatingToolbar
+        mode={isOverviewOpen ? 'overview' : 'poster'}
+        onNavigateToOverview={handleOpenOverview}
+        onNavigateToPoster={handleCloseOverview}
+        filterOption={overviewFilter}
+        onFilterChange={setOverviewFilter}
+        sortOption={overviewSort}
+        onSortChange={setOverviewSort}
+        isScoreOverlayVisible={isScoreOverlayVisible}
+        onToggleScoreOverlay={() => setIsScoreOverlayVisible((value) => !value)}
+        filterOptions={filterOptions}
+        sortOptions={sortOptions}
+      />
     </div>
   );
 }
