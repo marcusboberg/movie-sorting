@@ -5,7 +5,7 @@ p {
 
 .app-shell {
   --app-shell-padding-top: 24px;
-  --app-shell-padding-bottom: clamp(120px, 20vh, 200px);
+  --app-shell-padding-bottom: 24px;
   --app-shell-bleed-vertical: clamp(42vh, 48vh, 54vh);
   --app-shell-bleed-horizontal: clamp(18vw, 24vw, 30vw);
   position: relative;
@@ -25,7 +25,7 @@ p {
 @supports (padding-top: env(safe-area-inset-top)) {
   .app-shell {
     --app-shell-padding-top: calc(24px + env(safe-area-inset-top));
-    --app-shell-padding-bottom: calc(clamp(120px, 20vh, 200px) + env(safe-area-inset-bottom));
+    --app-shell-padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
 }
 
@@ -69,9 +69,19 @@ p {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  justify-content: flex-start;
+  min-height: calc(100dvh - var(--app-shell-padding-top) - var(--app-shell-padding-bottom));
   gap: clamp(20px, 4vh, 40px);
   position: relative;
   z-index: 1;
+}
+
+.app-stage--focused {
+  justify-content: center;
+}
+
+.app-stage--overview {
+  justify-content: flex-start;
 }
 
 .app-main {
@@ -112,7 +122,7 @@ p {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  padding: 4px 0 clamp(48px, 14vh, 132px);
+  padding: 4px 0 96px;
   overflow-y: auto;
   mask-image: linear-gradient(
     to bottom,
@@ -133,6 +143,12 @@ p {
   mask-mode: alpha;
   mask-repeat: no-repeat;
   -webkit-mask-repeat: no-repeat;
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .overview-grid {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
 }
 
 .overview-card {
