@@ -37,10 +37,11 @@ const filterOptions = [
   { value: 'all', label: 'Alla filmer' },
   { value: 'scored', label: 'Endast med betyg' },
   { value: 'unscored', label: 'Endast utan betyg' },
+  { value: 'scoreRange', label: 'Score span' },
 ];
 
 const sortOptions = [
-  { value: 'scoreSpan', label: 'Score (span)' },
+  { value: 'viewingOrder', label: 'Viewing order (default)' },
   { value: 'title', label: 'Titel' },
   { value: 'year', label: 'År' },
   { value: 'runtime', label: 'Speltid' },
@@ -80,7 +81,8 @@ function App() {
     }, {})
   );
   const [overviewFilter, setOverviewFilter] = useState('all');
-  const [overviewSort, setOverviewSort] = useState('scoreSpan');
+  const [scoreFilterRange, setScoreFilterRange] = useState([0, 10]);
+  const [overviewSort, setOverviewSort] = useState('viewingOrder');
   const [isScoreOverlayVisible, setIsScoreOverlayVisible] = useState(true);
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
@@ -192,6 +194,27 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOverviewOpen, navigateBy]);
   const normalizeRating = useCallback((value) => Math.round((value ?? 0) * 10) / 10, []);
+
+  const handleScoreFilterRangeChange = useCallback((nextRange) => {
+    setScoreFilterRange((previousRange) => {
+      const [rawMin = 0, rawMax = 10] = Array.isArray(nextRange) ? nextRange : [0, 10];
+      const min = Number.isFinite(rawMin) ? rawMin : Number.parseFloat(rawMin) || 0;
+      const max = Number.isFinite(rawMax) ? rawMax : Number.parseFloat(rawMax) || 10;
+      const clampedMin = Math.min(Math.max(0, min), 10);
+      const clampedMax = Math.min(10, Math.max(clampedMin, max));
+
+      if (
+        Array.isArray(previousRange) &&
+        previousRange.length === 2 &&
+        Math.abs(previousRange[0] - clampedMin) < 0.0001 &&
+        Math.abs(previousRange[1] - clampedMax) < 0.0001
+      ) {
+        return previousRange;
+      }
+
+      return [clampedMin, clampedMax];
+    });
+  }, []);
 
   const handleRatingChange = useCallback(
     (movieId, value) => {
@@ -454,13 +477,21 @@ function App() {
       return { movie, index, ratingValue, hasScore };
     });
 
-    const filtered = base.filter(({ hasScore }) => {
+    const filtered = base.filter(({ hasScore, ratingValue }) => {
       if (overviewFilter === 'scored') {
         return hasScore;
       }
 
       if (overviewFilter === 'unscored') {
         return !hasScore;
+      }
+
+      if (overviewFilter === 'scoreRange') {
+        const [min, max] = scoreFilterRange;
+        if (!hasScore) {
+          return false;
+        }
+        return ratingValue >= min && ratingValue <= max;
       }
 
       return true;
@@ -481,24 +512,15 @@ function App() {
           return (b.movie.runtimeMinutes ?? 0) - (a.movie.runtimeMinutes ?? 0);
         case 'score':
           return (b.ratingValue ?? 0) - (a.ratingValue ?? 0);
-        case 'scoreSpan': {
-          const spanA = Math.abs((a.ratingValue ?? 0) - 5);
-          const spanB = Math.abs((b.ratingValue ?? 0) - 5);
-          if (spanB !== spanA) {
-            return spanB - spanA;
-          }
-          if (a.hasScore !== b.hasScore) {
-            return Number(b.hasScore) - Number(a.hasScore);
-          }
-          return (b.ratingValue ?? 0) - (a.ratingValue ?? 0);
-        }
+        case 'viewingOrder':
+          return a.index - b.index;
         default:
           return 0;
       }
     });
 
     return sorted;
-  }, [hasUserRatingMap, movies, overviewFilter, overviewSort, ratings]);
+  }, [hasUserRatingMap, movies, overviewFilter, overviewSort, ratings, scoreFilterRange]);
 
   return (
     <div
@@ -579,6 +601,8 @@ function App() {
         onToggleScoreOverlay={() => setIsScoreOverlayVisible((value) => !value)}
         filterOptions={filterOptions}
         sortOptions={sortOptions}
+        scoreRange={scoreFilterRange}
+        onScoreRangeChange={handleScoreFilterRangeChange}
       />
     </div>
   );
