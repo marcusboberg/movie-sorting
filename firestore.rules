@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /ratings/{username}/movies/{movieId} {
+      allow read: if true;
+      allow write: if username in ['Adam', 'Philip', 'Marcus'] &&
+        request.resource.data.username == username;
+    }
+
+    match /ratings/{username}/{document=**} {
+      allow read: if true;
+    }
+  }
+}

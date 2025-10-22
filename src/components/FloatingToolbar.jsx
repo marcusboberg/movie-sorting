@@ -5,6 +5,8 @@ function FloatingToolbar({
   mode,
   onNavigateToOverview,
   onNavigateToPoster,
+  currentUser,
+  onUserChange,
   filterOption,
   onFilterChange,
   sortOption,
@@ -15,6 +17,7 @@ function FloatingToolbar({
   sortOptions = [],
   scoreRange = [0, 10],
   onScoreRangeChange,
+  userOptions = [],
 }) {
   const surfaceRef = useRef(null);
   const previousModeRef = useRef(mode);
@@ -92,6 +95,21 @@ function FloatingToolbar({
 
   const [scoreRangeMin, scoreRangeMax] = sanitizedScoreRange;
 
+  const availableUsers = useMemo(() => {
+    if (!Array.isArray(userOptions)) {
+      return [];
+    }
+    return userOptions.filter(Boolean);
+  }, [userOptions]);
+  const hasUserOptions = availableUsers.length > 0;
+
+  const handleUserSelect = (user) => {
+    if (typeof onUserChange === 'function') {
+      onUserChange(user);
+    }
+    setOpenMenu(null);
+  };
+
   const updateScoreRange = (type, rawValue) => {
     if (typeof onScoreRangeChange !== 'function') {
       return;
@@ -139,9 +157,35 @@ function FloatingToolbar({
   return (
     <nav className="floating-toolbar" aria-label={`Verktygsrad för ${toolbarLabel}`}>
       <div className="floating-toolbar__surface" ref={surfaceRef}>
-        <button type="button" className="floating-toolbar__avatar" aria-label="Profil (kommer snart)">
-          <span aria-hidden="true">MB</span>
+        <button
+          type="button"
+          className="floating-toolbar__avatar"
+          onClick={hasUserOptions ? () => handleToggleMenu('profile') : undefined}
+          aria-haspopup={hasUserOptions ? 'true' : undefined}
+          aria-expanded={hasUserOptions ? openMenu === 'profile' : undefined}
+          aria-label={currentUser ? `Aktiv profil: ${currentUser}` : 'Välj profil'}
+          disabled={!hasUserOptions}
+        >
+          <span aria-hidden="true">{currentUser ? currentUser.slice(0, 2).toUpperCase() : '?'}</span>
         </button>
+        {openMenu === 'profile' && hasUserOptions ? (
+          <div className="floating-toolbar__menu floating-toolbar__menu--profile" role="menu">
+            {availableUsers.map((user) => (
+              <button
+                key={user}
+                type="button"
+                className={`floating-toolbar__menu-item ${
+                  currentUser === user ? 'floating-toolbar__menu-item--active' : ''
+                }`}
+                role="menuitemradio"
+                aria-checked={currentUser === user}
+                onClick={() => handleUserSelect(user)}
+              >
+                {user}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {isPosterView ? (
           <div className="floating-toolbar__actions floating-toolbar__actions--poster">

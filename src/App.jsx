@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import FloatingToolbar from './components/FloatingToolbar.jsx';
+import {
+  loadAllRatings,
+  loadUserRatings,
+  saveRating,
+  subscribeUserRatings,
+  USERNAMES,
+} from './lib/ratings';
 import './App.css';
 
 function normalizeMovie(movie, index) {
@@ -48,6 +55,9 @@ const sortOptions = [
   { value: 'score', label: 'Score' },
 ];
 
+const USER_OPTIONS = [...USERNAMES];
+const USER_STORAGE_KEY = 'movie-sorting.activeUser';
+
 function App() {
   const movies = useMemo(() => {
     if (!Array.isArray(rawMovies)) {
@@ -60,32 +70,54 @@ function App() {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(({ order, ...movie }) => movie);
   }, []);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [ratings, setRatings] = useState(() =>
-    movies.reduce((accumulator, movie) => {
-      accumulator[movie.id] = 0;
-      return accumulator;
-    }, {})
+  const emptyRatings = useMemo(
+    () =>
+      movies.reduce((accumulator, movie) => {
+        accumulator[movie.id] = 0;
+        return accumulator;
+      }, {}),
+    [movies]
   );
+  const [ratings, setRatings] = useState(emptyRatings);
   const ratingsRef = useRef(ratings);
   useEffect(() => {
     ratingsRef.current = ratings;
   }, [ratings]);
-  const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
-  const [transitionDirection, setTransitionDirection] = useState(null);
-  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
-  const [hasUserRatingMap, setHasUserRatingMap] = useState(() =>
-    movies.reduce((accumulator, movie) => {
-      accumulator[movie.id] = false;
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [username, setUsername] = useState(() => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const stored = window.localStorage.getItem(USER_STORAGE_KEY);
+    return stored && USER_OPTIONS.includes(stored) ? stored : null;
+  });
+  const [allRatings, setAllRatings] = useState(() =>
+    USER_OPTIONS.reduce((accumulator, user) => {
+      accumulator[user] = {};
       return accumulator;
     }, {})
   );
+  const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
+  const [transitionDirection, setTransitionDirection] = useState(null);
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
+  const [overviewMode, setOverviewMode] = useState('grid');
   const [overviewFilter, setOverviewFilter] = useState('all');
   const [scoreFilterRange, setScoreFilterRange] = useState([0, 10]);
   const [overviewSort, setOverviewSort] = useState('viewingOrder');
   const [isScoreOverlayVisible, setIsScoreOverlayVisible] = useState(true);
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
+
+  useEffect(() => {
+    if (!username || typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(USER_STORAGE_KEY, username);
+  }, [username]);
+
+  useEffect(() => {
+    setRatings(emptyRatings);
+  }, [emptyRatings]);
 
   const activeMovie = movies[currentIndex];
   const nextMovie = movies.length > 1 ? movies[(currentIndex + 1) % movies.length] : null;
@@ -193,7 +225,11 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOverviewOpen, navigateBy]);
-  const normalizeRating = useCallback((value) => Math.round((value ?? 0) * 10) / 10, []);
+  const normalizeRating = useCallback((value) => {
+    const numeric = Number.isFinite(value) ? value : Number.parseFloat(value ?? 0);
+    const safeValue = Number.isFinite(numeric) ? numeric : 0;
+    return Math.min(10, Math.max(0, Math.round(safeValue * 10) / 10));
+  }, []);
 
   const handleScoreFilterRangeChange = useCallback((nextRange) => {
     setScoreFilterRange((previousRange) => {
@@ -216,43 +252,217 @@ function App() {
     });
   }, []);
 
+  const areRatingMapsEqual = useCallback((first = {}, second = {}) => {
+    const firstKeys = Object.keys(first);
+    const secondKeys = Object.keys(second);
+    if (firstKeys.length !== secondKeys.length) {
+      return false;
+    }
+
+    return firstKeys.every((key) => {
+      if (!Object.prototype.hasOwnProperty.call(second, key)) {
+        return false;
+      }
+      return Math.abs((first[key] ?? 0) - (second[key] ?? 0)) < 0.0001;
+    });
+  }, []);
+
+  const hasUserRatingMap = useMemo(
+    () =>
+      movies.reduce((accumulator, movie) => {
+        const movieKey = String(movie.id);
+        accumulator[movieKey] = (ratings[movieKey] ?? 0) > 0.0001;
+        return accumulator;
+      }, {}),
+    [movies, ratings]
+  );
+
+  const applyRemoteRatings = useCallback(
+    (incoming = {}) => {
+      const normalized = Object.entries(incoming ?? {}).reduce((accumulator, [movieId, value]) => {
+        const nextValue = normalizeRating(value);
+        if (nextValue > 0.0001) {
+          accumulator[String(movieId)] = nextValue;
+        }
+        return accumulator;
+      }, {});
+
+      setRatings((previous) => {
+        let hasChange = false;
+        const next = { ...previous };
+        movies.forEach((movie) => {
+          const movieKey = String(movie.id);
+          const remoteValue = normalized[movieKey] ?? 0;
+          if (Math.abs((previous[movieKey] ?? 0) - remoteValue) > 0.0001) {
+            next[movieKey] = remoteValue;
+            hasChange = true;
+          }
+        });
+        return hasChange ? next : previous;
+      });
+    },
+    [movies, normalizeRating]
+  );
+
+  useEffect(() => {
+    if (!username) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+    setRatings(emptyRatings);
+
+    loadUserRatings(username).then((initialRatings) => {
+      if (isCancelled) return;
+      applyRemoteRatings(initialRatings);
+    });
+
+    const unsubscribe = subscribeUserRatings(username, (liveRatings) => {
+      if (isCancelled) return;
+      applyRemoteRatings(liveRatings);
+    });
+
+    return () => {
+      isCancelled = true;
+      unsubscribe?.();
+    };
+  }, [username, emptyRatings, applyRemoteRatings]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    loadAllRatings().then((initial) => {
+      if (isCancelled) return;
+      setAllRatings((previous) => {
+        let hasChange = false;
+        const next = { ...previous };
+        USER_OPTIONS.forEach((user) => {
+          const normalized = Object.entries(initial?.[user] ?? {}).reduce((accumulator, [movieId, value]) => {
+            const nextValue = normalizeRating(value);
+            if (nextValue > 0.0001) {
+              accumulator[String(movieId)] = nextValue;
+            }
+            return accumulator;
+          }, {});
+
+          const current = previous[user] ?? {};
+          if (!areRatingMapsEqual(current, normalized)) {
+            next[user] = normalized;
+            hasChange = true;
+          }
+        });
+
+        return hasChange ? next : previous;
+      });
+    });
+
+    const unsubscribers = USER_OPTIONS.map((user) =>
+      subscribeUserRatings(user, (userRatings) => {
+        if (isCancelled) return;
+        setAllRatings((previous) => {
+          const current = previous[user] ?? {};
+          const normalized = Object.entries(userRatings ?? {}).reduce((accumulator, [movieId, value]) => {
+            const nextValue = normalizeRating(value);
+            if (nextValue > 0.0001) {
+              accumulator[String(movieId)] = nextValue;
+            }
+            return accumulator;
+          }, {});
+
+          if (areRatingMapsEqual(current, normalized)) {
+            return previous;
+          }
+
+          return { ...previous, [user]: normalized };
+        });
+      })
+    );
+
+    return () => {
+      isCancelled = true;
+      unsubscribers.forEach((unsubscribe) => unsubscribe?.());
+    };
+  }, [areRatingMapsEqual, normalizeRating]);
+
   const handleRatingChange = useCallback(
     (movieId, value) => {
+      const movieKey = String(movieId);
       const normalized = normalizeRating(value);
       setRatings((previous) => {
-        const current = previous[movieId] ?? 0;
+        const current = previous[movieKey] ?? 0;
         if (Math.abs(current - normalized) < 0.0001) {
           return previous;
         }
 
-        return { ...previous, [movieId]: normalized };
+        return { ...previous, [movieKey]: normalized };
       });
+
+      if (username && USER_OPTIONS.includes(username)) {
+        setAllRatings((previous) => {
+          const currentUserRatings = previous[username] ?? {};
+          const currentValue = currentUserRatings[movieKey] ?? 0;
+          if (Math.abs(currentValue - normalized) < 0.0001) {
+            return previous;
+          }
+
+          if (normalized <= 0.0001) {
+            if (!(movieKey in currentUserRatings)) {
+              return previous;
+            }
+            const { [movieKey]: _removed, ...rest } = currentUserRatings;
+            return { ...previous, [username]: rest };
+          }
+
+          return { ...previous, [username]: { ...currentUserRatings, [movieKey]: normalized } };
+        });
+      }
     },
-    [normalizeRating]
+    [normalizeRating, username]
   );
 
   const handleRatingCommit = useCallback(
     (movieId, value) => {
+      const movieKey = String(movieId);
       const normalized = normalizeRating(value);
       setRatings((previous) => {
-        const current = previous[movieId] ?? 0;
+        const current = previous[movieKey] ?? 0;
         if (Math.abs(current - normalized) < 0.0001) {
           return previous;
         }
 
-        return { ...previous, [movieId]: normalized };
+        return { ...previous, [movieKey]: normalized };
       });
-      setHasUserRatingMap((previous) => {
-        const hasScore = normalized > 0.0001;
-        if ((previous[movieId] ?? false) === hasScore) {
-          return previous;
-        }
 
-        return { ...previous, [movieId]: hasScore };
-      });
+      if (username && USER_OPTIONS.includes(username)) {
+        setAllRatings((previous) => {
+          const currentUserRatings = previous[username] ?? {};
+          const currentValue = currentUserRatings[movieKey] ?? 0;
+          if (Math.abs(currentValue - normalized) < 0.0001) {
+            return previous;
+          }
+
+          if (normalized <= 0.0001) {
+            if (!(movieKey in currentUserRatings)) {
+              return previous;
+            }
+            const { [movieKey]: _removed, ...rest } = currentUserRatings;
+            return { ...previous, [username]: rest };
+          }
+
+          return { ...previous, [username]: { ...currentUserRatings, [movieKey]: normalized } };
+        });
+
+        void saveRating(username, movieKey, normalized).catch((error) => {
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.error('Failed to save rating', error);
+          }
+        });
+      }
+
       setActiveRatingMovieId(null);
     },
-    [normalizeRating]
+    [normalizeRating, username]
   );
 
   const handleRatingInteractionChange = useCallback((movieId, isActive) => {
@@ -470,6 +680,17 @@ function App() {
     });
   };
 
+  const handleUserSelection = useCallback(
+    (nextUser) => {
+      if (!nextUser || !USER_OPTIONS.includes(nextUser) || nextUser === username) {
+        return;
+      }
+      setUsername(nextUser);
+      setOverviewMode('grid');
+    },
+    [username]
+  );
+
   const overviewMovies = useMemo(() => {
     const base = movies.map((movie, index) => {
       const ratingValue = ratings[movie.id] ?? 0;
@@ -522,6 +743,26 @@ function App() {
     return sorted;
   }, [hasUserRatingMap, movies, overviewFilter, overviewSort, ratings, scoreFilterRange]);
 
+  const compareRows = useMemo(() => {
+    return movies.map((movie) => {
+      const movieKey = String(movie.id);
+      const values = USER_OPTIONS.map((user) => {
+        const userRatings = allRatings[user] ?? {};
+        return normalizeRating(userRatings[movieKey] ?? 0);
+      });
+
+      const ratedValues = values.filter((value) => value > 0.0001);
+      const average =
+        ratedValues.length > 0
+          ? Math.round((ratedValues.reduce((sum, value) => sum + value, 0) / ratedValues.length) * 10) / 10
+          : 0;
+
+      return { movie, values, average };
+    });
+  }, [allRatings, movies, normalizeRating]);
+
+  const shouldShowUserPicker = !username;
+
   return (
     <div
       className={`app-shell ${isOverviewOpen ? 'app-shell--overview' : 'app-shell--focused'}`}
@@ -538,37 +779,111 @@ function App() {
           ref={isOverviewOpen ? undefined : swipeAreaRef}
         >
           {isOverviewOpen ? (
-            <div className="overview-grid">
-              {overviewMovies.map(({ movie, index: movieIndex, ratingValue, hasScore }) => {
-                const posterUrl = movie.posterUrl ?? null;
-                return (
+            <div className="overview-panel">
+              <div className="overview-panel__header">
+                <div className="overview-tabs" role="tablist" aria-label="Vy">
                   <button
-                    key={movie.id}
                     type="button"
-                    className="overview-card"
-                    onClick={() => handleSelectMovie(movieIndex)}
-                    aria-label={`Visa ${movie.title}`}
+                    role="tab"
+                    aria-selected={overviewMode === 'grid'}
+                    className={`overview-tab ${overviewMode === 'grid' ? 'overview-tab--active' : ''}`}
+                    onClick={() => setOverviewMode('grid')}
                   >
-                    <div
-                      className={`overview-card__poster-shell ${
-                        isScoreOverlayVisible && hasScore ? 'overview-card__poster-shell--with-score' : ''
-                      }`}
-                    >
-                      {posterUrl ? (
-                        <img src={posterUrl} alt={movie.title} loading="lazy" />
-                      ) : (
-                        <div className="overview-card__fallback">Ingen affisch</div>
-                      )}
-                      {isScoreOverlayVisible && hasScore ? (
-                        <div className="overview-card__rating" aria-hidden="true">
-                          <span className="overview-card__rating-value">{ratingValue.toFixed(1)}</span>
-                          <span className="overview-card__rating-scale">/10</span>
-                        </div>
-                      ) : null}
-                    </div>
+                    Affischer
                   </button>
-                );
-              })}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={overviewMode === 'compare'}
+                    className={`overview-tab ${overviewMode === 'compare' ? 'overview-tab--active' : ''}`}
+                    onClick={() => setOverviewMode('compare')}
+                  >
+                    Jämför
+                  </button>
+                </div>
+              </div>
+              {overviewMode === 'grid' ? (
+                <div className="overview-grid">
+                  {overviewMovies.map(({ movie, index: movieIndex, ratingValue, hasScore }) => {
+                    const posterUrl = movie.posterUrl ?? null;
+                    return (
+                      <button
+                        key={movie.id}
+                        type="button"
+                        className="overview-card"
+                        onClick={() => handleSelectMovie(movieIndex)}
+                        aria-label={`Visa ${movie.title}`}
+                      >
+                        <div
+                          className={`overview-card__poster-shell ${
+                            isScoreOverlayVisible && hasScore ? 'overview-card__poster-shell--with-score' : ''
+                          }`}
+                        >
+                          {posterUrl ? (
+                            <img src={posterUrl} alt={movie.title} loading="lazy" />
+                          ) : (
+                            <div className="overview-card__fallback">Ingen affisch</div>
+                          )}
+                          {isScoreOverlayVisible && hasScore ? (
+                            <div className="overview-card__rating" aria-hidden="true">
+                              <span className="overview-card__rating-value">{ratingValue.toFixed(1)}</span>
+                              <span className="overview-card__rating-scale">/10</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="compare-table-wrapper">
+                  <table className="compare-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Film</th>
+                        {USER_OPTIONS.map((user) => (
+                          <th key={user} scope="col">
+                            {user}
+                          </th>
+                        ))}
+                        <th scope="col">Snitt</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compareRows.map(({ movie, values, average }) => (
+                        <tr key={movie.id}>
+                          <th scope="row">
+                            <span className="compare-table__title">{movie.title}</span>
+                            <span className="compare-table__meta">{movie.releaseYear}</span>
+                          </th>
+                          {values.map((value, index) => {
+                            const user = USER_OPTIONS[index];
+                            const cellClassName = `compare-table__cell ${
+                              username === user ? 'compare-table__cell--active' : ''
+                            }`;
+                            return (
+                              <td key={`${movie.id}-${user}`} className={cellClassName}>
+                                {value > 0.0001 ? (
+                                  value.toFixed(1)
+                                ) : (
+                                  <span className="compare-table__no-rating">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="compare-table__cell compare-table__cell--average">
+                            {average > 0.0001 ? (
+                              average.toFixed(1)
+                            ) : (
+                              <span className="compare-table__no-rating">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           ) : activeMovie ? (
             <div
@@ -593,6 +908,9 @@ function App() {
         mode={isOverviewOpen ? 'overview' : 'poster'}
         onNavigateToOverview={handleOpenOverview}
         onNavigateToPoster={handleCloseOverview}
+        currentUser={username}
+        userOptions={USER_OPTIONS}
+        onUserChange={handleUserSelection}
         filterOption={overviewFilter}
         onFilterChange={setOverviewFilter}
         sortOption={overviewSort}
@@ -604,6 +922,26 @@ function App() {
         scoreRange={scoreFilterRange}
         onScoreRangeChange={handleScoreFilterRangeChange}
       />
+      {shouldShowUserPicker ? (
+        <div className="user-picker-overlay">
+          <div className="user-picker" role="dialog" aria-modal="true" aria-labelledby="user-picker-title">
+            <h2 id="user-picker-title">Vem är du?</h2>
+            <p className="user-picker__subtitle">Välj din profil för att synka betygen.</p>
+            <div className="user-picker__options">
+              {USER_OPTIONS.map((user) => (
+                <button
+                  key={user}
+                  type="button"
+                  className={`user-picker__option ${username === user ? 'user-picker__option--active' : ''}`}
+                  onClick={() => handleUserSelection(user)}
+                >
+                  {user}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
