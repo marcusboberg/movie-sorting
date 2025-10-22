@@ -11,6 +11,9 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
+const RING_RADIUS = 52;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
 function MovieCard({ movie, rating = 0, isRatingActive = false }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
@@ -28,6 +31,9 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
   const overview =
     movie.overview ?? 'Plot summary unavailable right now.';
   const ratingValue = Number.isFinite(rating) ? rating : 0;
+  const ratingRatio = Math.min(Math.max(ratingValue / 10, 0), 1);
+  const strokeOffset = RING_CIRCUMFERENCE * (1 - ratingRatio);
+  const ratingColor = `hsl(${Math.round(120 * ratingRatio)}, 80%, 54%)`;
 
   return (
     <div className="movie-card-wrapper">
@@ -38,9 +44,27 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
           onClick={() => setIsFlipped((value) => !value)}
         >
           <div className="movie-poster-shell">
-            <div className={`movie-rating-badge ${isRatingActive ? 'movie-rating-badge--active' : ''}`}>
-              <span className="movie-rating-value">{ratingValue.toFixed(1)}</span>
-              <span className="movie-rating-scale">/10</span>
+            <div
+              className={`movie-rating-ring ${isRatingActive ? 'movie-rating-ring--active' : ''}`}
+              style={{ '--rating-ratio': ratingRatio, '--rating-color': ratingColor }}
+            >
+              <svg viewBox="0 0 120 120" aria-hidden="true">
+                <circle className="movie-rating-ring__background" cx="60" cy="60" r={RING_RADIUS} />
+                <circle
+                  className="movie-rating-ring__progress"
+                  cx="60"
+                  cy="60"
+                  r={RING_RADIUS}
+                  style={{
+                    strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
+                    strokeDashoffset: strokeOffset,
+                  }}
+                />
+              </svg>
+              <div className="movie-rating-ring__value">
+                <span className="movie-rating-ring__value-number">{ratingValue.toFixed(1)}</span>
+                <span className="movie-rating-ring__value-scale">/10</span>
+              </div>
             </div>
             <div className={`movie-rating-preview ${isRatingActive ? 'movie-rating-preview--visible' : ''}`}>
               <span>{ratingValue.toFixed(1)}</span>
