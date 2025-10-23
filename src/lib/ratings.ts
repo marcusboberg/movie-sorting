@@ -9,6 +9,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase';
+import { logFirebaseEvent } from './logger';
 
 export const USERNAMES = ['Adam', 'Philip', 'Marcus'] as const;
 export type Username = (typeof USERNAMES)[number];
@@ -129,6 +130,10 @@ function schedulePendingRetry(delay: number = nextRetryDelay): void {
   }
 
   const safeDelay = Math.min(Math.max(delay, INITIAL_RETRY_DELAY), MAX_RETRY_DELAY);
+  logFirebaseEvent('Schemalägger synk av väntande betyg', {
+    delay: safeDelay,
+    pendingCount: pendingRatings.length,
+  });
   pendingRetryHandle = window.setTimeout(() => {
     pendingRetryHandle = null;
     void processPendingRatings().then((wasSuccessful) => {
@@ -173,10 +178,14 @@ async function processPendingRatings(): Promise<boolean> {
 
   const db = getFirestoreDb();
   if (!db) {
+    logFirebaseEvent('Kan inte synka väntande betyg utan Firestore', {
+      pendingCount: pendingRatings.length,
+    });
     return false;
   }
 
   isProcessingPending = true;
+  logFirebaseEvent('Synkroniserar väntande betyg', { pendingCount: pendingRatings.length });
 
   try {
     const remaining: PendingRating[] = [];
@@ -185,10 +194,14 @@ async function processPendingRatings(): Promise<boolean> {
       try {
         await writeRating(db, entry.username, entry.movieId, clampRating(entry.rating));
       } catch (error) {
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          console.error('Failed to process pending rating', entry, error);
-        }
+        logFirebaseEvent(
+          'Misslyckades att synka väntande betyg',
+          {
+            entry,
+            error: error instanceof Error ? { message: error.message, name: error.name } : error,
+          },
+          'warn'
+        );
         remaining.push(entry);
       }
     }
@@ -199,6 +212,10 @@ async function processPendingRatings(): Promise<boolean> {
     if (wasSuccessful) {
       nextRetryDelay = INITIAL_RETRY_DELAY;
     }
+    logFirebaseEvent('Slutförde synkning av väntande betyg', {
+      pendingCount: remaining.length,
+      success: wasSuccessful,
+    });
     return wasSuccessful;
   } finally {
     isProcessingPending = false;
@@ -206,17 +223,20 @@ async function processPendingRatings(): Promise<boolean> {
 }
 
 const handleOnline = () => {
+  logFirebaseEvent('Anslutning återställd – synkar väntande betyg');
   void processPendingRatings();
 };
 
 const handleVisibilityChange = () => {
   if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+    logFirebaseEvent('Fönstret är aktivt – synkar väntande betyg');
     void processPendingRatings();
   }
 };
 
 export function initializeRatingSync(): void {
   if (!isBrowserEnvironment()) {
+    logFirebaseEvent('Hoppar över rating-synk – ej browsermiljö', undefined, 'warn');
     return;
   }
 
@@ -226,6 +246,7 @@ export function initializeRatingSync(): void {
     window.addEventListener('online', handleOnline);
     window.addEventListener('visibilitychange', handleVisibilityChange);
     isSyncInitialised = true;
+    logFirebaseEvent('Initierade lyssnare för rating-synk');
   }
 
   void processPendingRatings().then((wasSuccessful) => {
@@ -248,6 +269,11 @@ function serialiseRatings(entries: Record<string, unknown>): Record<string, numb
 export async function saveRating(username: string, movieId: string | number, rating: number): Promise<void> {
   const normalisedUsername = normaliseUsername(username);
   if (!normalisedUsername) {
+    logFirebaseEvent(
+      'Ogiltigt användarnamn vid sparning av betyg',
+      { username },
+      'warn'
+    );
     return;
   }
 
@@ -256,20 +282,45 @@ export async function saveRating(username: string, movieId: string | number, rat
   const db = getFirestoreDb();
 
   if (!db) {
+    logFirebaseEvent(
+      'Firestore saknas – lägger betyg i kö',
+      { username: normalisedUsername, movieId: movieKey, rating: ratingValue },
+      'warn'
+    );
     upsertPendingRating(normalisedUsername, movieKey, ratingValue);
     schedulePendingRetry();
     throw new Error('Firestore is not available');
   }
 
   try {
+    logFirebaseEvent('Sparar betyg i Firestore', {
+      username: normalisedUsername,
+      movieId: movieKey,
+      rating: ratingValue,
+    });
     await writeRating(db, normalisedUsername, movieKey, ratingValue);
     removePendingRating(normalisedUsername, movieKey);
     if (pendingRatings.length) {
       schedulePendingRetry();
     }
+    logFirebaseEvent('Betyg sparades', {
+      username: normalisedUsername,
+      movieId: movieKey,
+      rating: ratingValue,
+    });
   } catch (error) {
     upsertPendingRating(normalisedUsername, movieKey, ratingValue);
     schedulePendingRetry();
+    logFirebaseEvent(
+      'Misslyckades att spara betyg – lade till i kö',
+      {
+        username: normalisedUsername,
+        movieId: movieKey,
+        rating: ratingValue,
+        error: error instanceof Error ? { message: error.message, name: error.name } : error,
+      },
+      'error'
+    );
     throw error;
   }
 }
@@ -278,9 +329,15 @@ export async function loadUserRatings(username: string): Promise<Record<string, 
   const db = getFirestoreDb();
   const normalisedUsername = normaliseUsername(username);
   if (!db || !normalisedUsername) {
+    logFirebaseEvent(
+      'Kan inte läsa betyg utan Firestore eller användare',
+      { username },
+      'warn'
+    );
     return {};
   }
 
+  logFirebaseEvent('Hämtar betyg för användare', { username: normalisedUsername });
   const snapshot = await getDocs(collection(db, 'ratings', normalisedUsername, 'movies'));
   const result: Record<string, number> = {};
   snapshot.forEach((docSnapshot) => {
@@ -291,6 +348,7 @@ export async function loadUserRatings(username: string): Promise<Record<string, 
       result[docSnapshot.id] = numeric;
     }
   });
+  logFirebaseEvent('Hämtade betyg', { username: normalisedUsername, count: Object.keys(result).length });
   return result;
 }
 
@@ -301,11 +359,17 @@ export function subscribeUserRatings(
   const db = getFirestoreDb();
   const normalisedUsername = normaliseUsername(username);
   if (!db || !normalisedUsername) {
+    logFirebaseEvent(
+      'Kan inte starta prenumeration på betyg',
+      { username },
+      'warn'
+    );
     callback({});
     return () => {};
   }
 
   const reference = collection(db, 'ratings', normalisedUsername, 'movies');
+  logFirebaseEvent('Startar prenumeration på betyg', { username: normalisedUsername });
   return onSnapshot(reference, (snapshot) => {
     const payload: Record<string, number> = {};
     snapshot.forEach((docSnapshot) => {
@@ -317,11 +381,16 @@ export function subscribeUserRatings(
         payload[docSnapshot.id] = numeric;
       }
     });
+    logFirebaseEvent('Mottog uppdaterade betyg', {
+      username: normalisedUsername,
+      count: snapshot.size,
+    });
     callback(payload);
   });
 }
 
 export async function loadAllRatings(): Promise<Record<Username, Record<string, number>>> {
+  logFirebaseEvent('Hämtar samtliga betyg för alla användare');
   const entries = await Promise.all(
     USERNAMES.map(async (username) => {
       const ratings = await loadUserRatings(username);
@@ -329,8 +398,15 @@ export async function loadAllRatings(): Promise<Record<Username, Record<string, 
     })
   );
 
-  return entries.reduce<Record<Username, Record<string, number>>>((accumulator, [username, ratings]) => {
+  const result = entries.reduce<Record<Username, Record<string, number>>>((accumulator, [username, ratings]) => {
     accumulator[username] = serialiseRatings(ratings);
     return accumulator;
   }, {} as Record<Username, Record<string, number>>);
+
+  logFirebaseEvent('Samtliga betyg hämtade', {
+    userCount: USERNAMES.length,
+    totalRatings: Object.values(result).reduce((sum, userRatings) => sum + Object.keys(userRatings).length, 0),
+  });
+
+  return result;
 }
