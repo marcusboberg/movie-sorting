@@ -570,7 +570,7 @@ p {
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  transition: stroke-dashoffset 220ms ease, stroke 220ms ease;
+  transition: stroke 220ms ease;
   filter: drop-shadow(0 0 18px rgba(0, 0, 0, 0.4));
 }
 
