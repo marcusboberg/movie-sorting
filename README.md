@@ -53,13 +53,6 @@ domain `movies.marcusboberg.se` online without any manual uploads.
 
 Once configured, the site will refresh automatically after each merge to `main`.
 
-## Debugging Firebase sync
-
-Open the new debug console from the floating toolbar (terminal icon) to inspect log output directly in the app. All Firebase
-initialisation steps and rating synchronisation events are traced there, making it easier to follow pending queue retries and
-Firestore activity without opening the browser developer tools. Use the “Rensa” button in the console to clear the history when
-needed.
-
 ## Deploying to movies.marcusboberg.se (one.com)
 
 1. **Build locally** – run `npm run build` so the latest changes are written to `dist/`.
