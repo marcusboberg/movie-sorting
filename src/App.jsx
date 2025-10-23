@@ -68,6 +68,12 @@ const toHexColor = (red, green, blue) => {
   return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
 };
 
+const blendWithThemeFallback = (red, green, blue, mix = 0.25) => {
+  const fallbackChannel = 4;
+  const blendChannel = (value) => fallbackChannel + (value - fallbackChannel) * mix;
+  return toHexColor(blendChannel(red), blendChannel(green), blendChannel(blue));
+};
+
 function App() {
   const movies = useMemo(() => {
     if (!Array.isArray(rawMovies)) {
@@ -228,7 +234,7 @@ function App() {
             red = red / count;
             green = green / count;
             blue = blue / count;
-            color = toHexColor(red, green, blue);
+            color = blendWithThemeFallback(red, green, blue);
           }
         }
       } catch (error) {
@@ -1013,52 +1019,50 @@ function App() {
                 </div>
               ) : (
                 <div className="compare-table-wrapper">
-                  <div className="compare-table-scroll">
-                    <table className="compare-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Film</th>
-                        {USER_OPTIONS.map((user) => (
-                          <th key={user} scope="col">
-                            {user}
-                          </th>
-                        ))}
-                        <th scope="col">Snitt</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {compareRows.map(({ movie, values, average }) => (
-                        <tr key={movie.id}>
-                          <th scope="row">
-                            <span className="compare-table__title">{movie.title}</span>
-                            <span className="compare-table__meta">{movie.releaseYear}</span>
-                          </th>
+                  <div className="compare-list" role="list">
+                    {compareRows.map(({ movie, values, average }) => (
+                      <article key={movie.id} className="compare-card" role="listitem">
+                        <header className="compare-card__header">
+                          <div className="compare-card__info">
+                            <h3 className="compare-card__title">{movie.title}</h3>
+                            <p className="compare-card__meta">{movie.releaseYear}</p>
+                          </div>
+                          <div
+                            className={`compare-card__average ${
+                              average > 0.0001 ? '' : 'compare-card__average--empty'
+                            }`}
+                            aria-label={
+                              average > 0.0001
+                                ? `Snittbetyg ${average.toFixed(1)}`
+                                : 'Snittbetyg saknas'
+                            }
+                          >
+                            {average > 0.0001 ? average.toFixed(1) : '—'}
+                          </div>
+                        </header>
+                        <ul className="compare-card__ratings">
                           {values.map((value, index) => {
                             const user = USER_OPTIONS[index];
-                            const cellClassName = `compare-table__cell ${
-                              username === user ? 'compare-table__cell--active' : ''
+                            const hasScore = value > 0.0001;
+                            const ratingClassName = `compare-card__rating ${
+                              username === user ? 'compare-card__rating--active' : ''
                             }`;
                             return (
-                              <td key={`${movie.id}-${user}`} className={cellClassName}>
-                                {value > 0.0001 ? (
-                                  value.toFixed(1)
-                                ) : (
-                                  <span className="compare-table__no-rating">—</span>
-                                )}
-                              </td>
+                              <li key={`${movie.id}-${user}`} className={ratingClassName}>
+                                <span className="compare-card__user">{user}</span>
+                                <span
+                                  className={`compare-card__value ${
+                                    hasScore ? '' : 'compare-card__value--empty'
+                                  }`}
+                                >
+                                  {hasScore ? value.toFixed(1) : '—'}
+                                </span>
+                              </li>
                             );
                           })}
-                          <td className="compare-table__cell compare-table__cell--average">
-                            {average > 0.0001 ? (
-                              average.toFixed(1)
-                            ) : (
-                              <span className="compare-table__no-rating">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    </table>
+                        </ul>
+                      </article>
+                    ))}
                   </div>
                 </div>
               )}
