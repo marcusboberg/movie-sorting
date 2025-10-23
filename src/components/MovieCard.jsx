@@ -63,7 +63,6 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
               </svg>
               <div className="movie-rating-ring__value">
                 <span className="movie-rating-ring__value-number">{ratingValue.toFixed(1)}</span>
-                <span className="movie-rating-ring__value-scale">/10</span>
               </div>
             </div>
             <div className={`movie-rating-preview ${isRatingActive ? 'movie-rating-preview--visible' : ''}`}>
