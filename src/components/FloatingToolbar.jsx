@@ -18,8 +18,6 @@ function FloatingToolbar({
   scoreRange = [0, 10],
   onScoreRangeChange,
   userOptions = [],
-  isDebugConsoleOpen = false,
-  onToggleDebugConsole,
 }) {
   const surfaceRef = useRef(null);
   const previousModeRef = useRef(mode);
@@ -104,7 +102,6 @@ function FloatingToolbar({
     return userOptions.filter(Boolean);
   }, [userOptions]);
   const hasUserOptions = availableUsers.length > 0;
-  const canToggleDebugConsole = typeof onToggleDebugConsole === 'function';
 
   const handleUserSelect = (user) => {
     if (typeof onUserChange === 'function') {
@@ -157,26 +154,6 @@ function FloatingToolbar({
 
   const toolbarLabel = useMemo(() => (isPosterView ? 'Filmvy' : 'Affischöversikt'), [isPosterView]);
 
-  const renderDebugConsoleToggle = () => {
-    if (!canToggleDebugConsole) {
-      return null;
-    }
-
-    return (
-      <button
-        type="button"
-        className={`floating-toolbar__icon-button floating-toolbar__icon-button--toggle ${
-          isDebugConsoleOpen ? 'floating-toolbar__icon-button--toggle-active' : ''
-        }`}
-        onClick={onToggleDebugConsole}
-        aria-pressed={isDebugConsoleOpen}
-        aria-label={isDebugConsoleOpen ? 'Dölj loggar' : 'Visa loggar'}
-      >
-        <i className="fa-solid fa-terminal" aria-hidden="true" />
-      </button>
-    );
-  };
-
   return (
     <nav className="floating-toolbar" aria-label={`Verktygsrad för ${toolbarLabel}`}>
       <div className="floating-toolbar__surface" ref={surfaceRef}>
@@ -212,7 +189,6 @@ function FloatingToolbar({
 
         {isPosterView ? (
           <div className="floating-toolbar__actions floating-toolbar__actions--poster">
-            {renderDebugConsoleToggle()}
             <button
               type="button"
               className="floating-toolbar__icon-button"
@@ -363,7 +339,6 @@ function FloatingToolbar({
               <i className="fa-solid fa-layer-group" aria-hidden="true" />
               <span>{isScoreOverlayVisible ? 'Dölj betyg' : 'Visa betyg'}</span>
             </button>
-            {renderDebugConsoleToggle()}
             <button
               type="button"
               className="floating-toolbar__icon-button floating-toolbar__icon-button--back"

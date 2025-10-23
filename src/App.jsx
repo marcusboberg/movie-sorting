@@ -3,7 +3,6 @@ import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingRing from './components/RatingRing.jsx';
 import FloatingToolbar from './components/FloatingToolbar.jsx';
-import DebugConsole from './components/DebugConsole.jsx';
 import {
   loadAllRatings,
   loadUserRatings,
@@ -108,7 +107,6 @@ function App() {
   const [scoreFilterRange, setScoreFilterRange] = useState([0, 10]);
   const [overviewSort, setOverviewSort] = useState('viewingOrder');
   const [isScoreOverlayVisible, setIsScoreOverlayVisible] = useState(true);
-  const [isDebugConsoleOpen, setIsDebugConsoleOpen] = useState(false);
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
 
@@ -460,10 +458,7 @@ function App() {
           return { ...previous, [username]: { ...currentUserRatings, [movieKey]: normalized } };
         });
 
-        void saveRating(username, movieKey, normalized).catch((error) => {
-          // eslint-disable-next-line no-console
-          console.error('Failed to save rating', error);
-        });
+        void saveRating(username, movieKey, normalized).catch(() => {});
       }
 
       setActiveRatingMovieId(null);
@@ -767,14 +762,6 @@ function App() {
     });
   }, [allRatings, movies, normalizeRating]);
 
-  const handleToggleDebugConsole = useCallback(() => {
-    setIsDebugConsoleOpen((value) => !value);
-  }, []);
-
-  const handleCloseDebugConsole = useCallback(() => {
-    setIsDebugConsoleOpen(false);
-  }, []);
-
   const shouldShowUserPicker = !username;
 
   return (
@@ -934,10 +921,7 @@ function App() {
         sortOptions={sortOptions}
         scoreRange={scoreFilterRange}
         onScoreRangeChange={handleScoreFilterRangeChange}
-        isDebugConsoleOpen={isDebugConsoleOpen}
-        onToggleDebugConsole={handleToggleDebugConsole}
       />
-      <DebugConsole isOpen={isDebugConsoleOpen} onClose={handleCloseDebugConsole} />
       {shouldShowUserPicker ? (
         <div className="user-picker-overlay">
           <div className="user-picker" role="dialog" aria-modal="true" aria-labelledby="user-picker-title">

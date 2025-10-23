@@ -151,15 +151,6 @@
   background: rgba(142, 108, 250, 0.44);
 }
 
-.floating-toolbar__icon-button--toggle {
-  background: rgba(142, 108, 250, 0.24);
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.floating-toolbar__icon-button--toggle-active {
-  background: rgba(142, 108, 250, 0.44);
-}
-
 .floating-toolbar__menu {
   position: absolute;
   bottom: calc(100% + 12px);
