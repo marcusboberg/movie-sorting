@@ -109,6 +109,16 @@ function App() {
   const [isScoreOverlayVisible, setIsScoreOverlayVisible] = useState(true);
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
+  const [posterSession, setPosterSession] = useState(0);
+  const previousOverviewStateRef = useRef(isOverviewOpen);
+
+  useEffect(() => {
+    if (previousOverviewStateRef.current && !isOverviewOpen) {
+      setPosterSession((value) => value + 1);
+    }
+
+    previousOverviewStateRef.current = isOverviewOpen;
+  }, [isOverviewOpen]);
 
   useEffect(() => {
     void initializeRatingSync();
@@ -895,6 +905,7 @@ function App() {
               }`}
             >
               <MovieCard
+                key={`${activeMovie.id}-${posterSession}`}
                 movie={activeMovie}
                 rating={ratings[activeMovie.id] ?? 0}
                 isRatingActive={activeRatingMovieId === activeMovie.id}
