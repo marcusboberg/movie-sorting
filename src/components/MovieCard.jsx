@@ -14,9 +14,11 @@ function formatRuntime(minutes) {
 
 function MovieCard({ movie, rating = 0, isRatingActive = false, resetTrigger = 0 }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const [posterAspectRatio, setPosterAspectRatio] = useState(null);
 
   useEffect(() => {
     setIsFlipped(false);
+    setPosterAspectRatio(null);
   }, [movie?.id, resetTrigger]);
 
   if (!movie) {
@@ -29,8 +31,26 @@ function MovieCard({ movie, rating = 0, isRatingActive = false, resetTrigger = 0
   const overview =
     movie.overview ?? 'Plot summary unavailable right now.';
   const ratingValue = Number.isFinite(rating) ? rating : 0;
+  const handlePosterLoad = (event) => {
+    const { naturalWidth, naturalHeight } = event.target;
+    if (naturalWidth && naturalHeight) {
+      setPosterAspectRatio(naturalWidth / naturalHeight);
+    }
+  };
+
+  const handlePosterError = (event) => {
+    if (event?.target?.src !== placeholderPoster) {
+      event.target.src = placeholderPoster;
+    }
+  };
+
+  const aspectStyle =
+    posterAspectRatio && Number.isFinite(posterAspectRatio)
+      ? { '--poster-aspect-ratio': posterAspectRatio.toString() }
+      : undefined;
+
   return (
-    <div className="movie-card-wrapper">
+    <div className="movie-card-wrapper" style={aspectStyle}>
       <div className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''}`}>
         <button
           type="button"
@@ -44,6 +64,8 @@ function MovieCard({ movie, rating = 0, isRatingActive = false, resetTrigger = 0
               alt={movie.title}
               className="movie-poster"
               decoding="async"
+              onLoad={handlePosterLoad}
+              onError={handlePosterError}
             />
           </div>
         </button>
