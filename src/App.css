@@ -101,7 +101,7 @@ p {
 .movie-stage {
   position: relative;
   width: min(300px, 100%);
-  aspect-ratio: 3 / 4.4;
+  aspect-ratio: 2 / 3;
   flex: 1 1 auto;
   display: flex;
   align-items: stretch;
@@ -476,7 +476,7 @@ p {
 .movie-card-wrapper {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4.4;
+  aspect-ratio: 2 / 3;
   display: grid;
   place-items: center;
   perspective: 2000px;
