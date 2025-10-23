@@ -837,7 +837,8 @@ function App() {
                 </div>
               ) : (
                 <div className="compare-table-wrapper">
-                  <table className="compare-table">
+                  <div className="compare-table-scroll">
+                    <table className="compare-table">
                     <thead>
                       <tr>
                         <th scope="col">Film</th>
@@ -881,7 +882,8 @@ function App() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>

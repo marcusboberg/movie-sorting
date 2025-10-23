@@ -37,7 +37,7 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
           className="movie-face movie-face--front"
           onClick={() => setIsFlipped((value) => !value)}
         >
-          <div className="movie-poster-shell">
+          <div className="movie-poster-shell movie-poster-shell--front">
             <RatingRing value={ratingValue} isActive={isRatingActive} />
             <img
               src={posterUrl}
@@ -53,15 +53,17 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
           className="movie-face movie-face--back"
           onClick={() => setIsFlipped((value) => !value)}
         >
-          <div className="movie-backdrop" />
-          <div className="movie-details">
-            <h2>{movie.title}</h2>
-            <p className="movie-meta">
-              <span>{releaseYear}</span>
-              <span aria-hidden="true">•</span>
-              <span>{runtime}</span>
-            </p>
-            <p className="movie-overview">{overview}</p>
+          <div className="movie-poster-shell movie-poster-shell--back">
+            <div className="movie-backdrop" />
+            <div className="movie-details">
+              <h2>{movie.title}</h2>
+              <p className="movie-meta">
+                <span>{releaseYear}</span>
+                <span aria-hidden="true">•</span>
+                <span>{runtime}</span>
+              </p>
+              <p className="movie-overview">{overview}</p>
+            </div>
           </div>
         </button>
       </div>
