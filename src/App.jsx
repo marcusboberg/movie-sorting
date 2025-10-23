@@ -7,6 +7,7 @@ import {
   loadUserRatings,
   saveRating,
   subscribeUserRatings,
+  initializeRatingSync,
   USERNAMES,
 } from './lib/ratings';
 import './App.css';
@@ -107,6 +108,10 @@ function App() {
   const [isScoreOverlayVisible, setIsScoreOverlayVisible] = useState(true);
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
+
+  useEffect(() => {
+    void initializeRatingSync();
+  }, []);
 
   useEffect(() => {
     if (!username || typeof window === 'undefined') {
@@ -453,10 +458,8 @@ function App() {
         });
 
         void saveRating(username, movieKey, normalized).catch((error) => {
-          if (import.meta.env.DEV) {
-            // eslint-disable-next-line no-console
-            console.error('Failed to save rating', error);
-          }
+          // eslint-disable-next-line no-console
+          console.error('Failed to save rating', error);
         });
       }
 
