@@ -326,16 +326,47 @@
     padding: 12px 14px;
   }
 
-  .floating-toolbar__action span {
-    display: none;
-  }
-
   .floating-toolbar__action {
     padding: 10px 12px;
   }
 
   .floating-toolbar__menu {
     min-width: 160px;
+  }
+
+  .floating-toolbar__actions--overview {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding-bottom: 6px;
+    margin: 0 -6px;
+    padding-left: 6px;
+    padding-right: 6px;
+    mask-image: linear-gradient(to right, transparent, rgba(0, 0, 0, 1) 20px, rgba(0, 0, 0, 1) calc(100% - 20px), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, rgba(0, 0, 0, 1) 20px, rgba(0, 0, 0, 1) calc(100% - 20px), transparent);
+  }
+
+  .floating-toolbar__actions--overview::-webkit-scrollbar {
+    display: none;
+  }
+
+  .floating-toolbar__action-wrapper,
+  .floating-toolbar__action,
+  .floating-toolbar__action--toggle,
+  .floating-toolbar__icon-button {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+  }
+
+  .floating-toolbar__action {
+    min-width: 140px;
+    justify-content: flex-start;
+  }
+
+  .floating-toolbar__action span {
+    display: inline;
+    font-size: 0.7rem;
   }
 }
 

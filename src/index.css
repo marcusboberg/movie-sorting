@@ -3,7 +3,8 @@
   font-family: 'Noticia Text', serif;
   font-weight: 400;
   font-style: normal;
-  background-color: #040404;
+  --app-theme-color: #040404;
+  background-color: var(--app-theme-color);
   color: #f5f5f5;
 }
 

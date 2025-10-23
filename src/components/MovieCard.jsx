@@ -12,12 +12,12 @@ function formatRuntime(minutes) {
   return `${hours}h ${mins}m`;
 }
 
-function MovieCard({ movie, rating = 0, isRatingActive = false }) {
+function MovieCard({ movie, rating = 0, isRatingActive = false, resetTrigger = 0 }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   useEffect(() => {
     setIsFlipped(false);
-  }, [movie?.id]);
+  }, [movie?.id, resetTrigger]);
 
   if (!movie) {
     return null;
@@ -43,7 +43,7 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
               src={posterUrl}
               alt={movie.title}
               className="movie-poster"
-              loading="lazy"
+              decoding="async"
             />
           </div>
         </button>

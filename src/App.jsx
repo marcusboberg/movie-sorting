@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingRing from './components/RatingRing.jsx';
@@ -59,6 +60,13 @@ const sortOptions = [
 
 const USER_OPTIONS = [...USERNAMES];
 const USER_STORAGE_KEY = 'movie-sorting.activeUser';
+const THEME_COLOR_FALLBACK = '#040404';
+
+const toHexColor = (red, green, blue) => {
+  const clamp = (value) => Math.max(0, Math.min(255, Math.round(value)));
+  const toHex = (value) => clamp(value).toString(16).padStart(2, '0');
+  return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
+};
 
 function App() {
   const movies = useMemo(() => {
@@ -110,7 +118,13 @@ function App() {
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
   const [posterSession, setPosterSession] = useState(0);
+  const [posterSnapToken, setPosterSnapToken] = useState(0);
+  const preloadedPostersRef = useRef(new Set());
+  const themeColorCacheRef = useRef(new Map());
+  const themeColorMetaRef = useRef(null);
   const previousOverviewStateRef = useRef(isOverviewOpen);
+  const activeMovie = movies[currentIndex] ?? null;
+  const nextMovie = movies.length > 1 ? movies[(currentIndex + 1) % movies.length] : null;
 
   useEffect(() => {
     if (previousOverviewStateRef.current && !isOverviewOpen) {
@@ -119,6 +133,158 @@ function App() {
 
     previousOverviewStateRef.current = isOverviewOpen;
   }, [isOverviewOpen]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return undefined;
+    }
+
+    const existingMeta = document.querySelector('meta[name="theme-color"]');
+    if (existingMeta) {
+      themeColorMetaRef.current = existingMeta;
+    } else {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', 'theme-color');
+      meta.setAttribute('content', THEME_COLOR_FALLBACK);
+      document.head.appendChild(meta);
+      themeColorMetaRef.current = meta;
+    }
+
+    document.documentElement.style.setProperty('--app-theme-color', THEME_COLOR_FALLBACK);
+    if (document.body) {
+      document.body.style.backgroundColor = THEME_COLOR_FALLBACK;
+    }
+
+    return () => {};
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return undefined;
+    }
+
+    const applyThemeColor = (color) => {
+      const meta = themeColorMetaRef.current;
+      if (meta) {
+        meta.setAttribute('content', color);
+      }
+      document.documentElement.style.setProperty('--app-theme-color', color);
+      if (document.body) {
+        document.body.style.backgroundColor = color;
+      }
+    };
+
+    if (!activeMovie?.posterUrl) {
+      applyThemeColor(THEME_COLOR_FALLBACK);
+      return undefined;
+    }
+
+    const posterUrl = activeMovie.posterUrl;
+    const cachedColor = themeColorCacheRef.current.get(posterUrl);
+    if (cachedColor) {
+      applyThemeColor(cachedColor);
+      return undefined;
+    }
+
+    applyThemeColor(THEME_COLOR_FALLBACK);
+
+    let isCancelled = false;
+    const image = new Image();
+    image.decoding = 'async';
+
+    const handleApplyColor = () => {
+      if (isCancelled) {
+        return;
+      }
+
+      let color = THEME_COLOR_FALLBACK;
+
+      try {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (context) {
+          const size = 12;
+          canvas.width = size;
+          canvas.height = size;
+          context.drawImage(image, 0, 0, size, size);
+          const imageData = context.getImageData(0, 0, size, size);
+          const data = imageData.data;
+          let red = 0;
+          let green = 0;
+          let blue = 0;
+          let count = 0;
+          for (let index = 0; index < data.length; index += 4) {
+            const alpha = data[index + 3];
+            if (alpha < 32) {
+              continue;
+            }
+            red += data[index];
+            green += data[index + 1];
+            blue += data[index + 2];
+            count += 1;
+          }
+
+          if (count > 0) {
+            red = red / count;
+            green = green / count;
+            blue = blue / count;
+            color = toHexColor(red, green, blue);
+          }
+        }
+      } catch (error) {
+        color = THEME_COLOR_FALLBACK;
+      }
+
+      themeColorCacheRef.current.set(posterUrl, color);
+      applyThemeColor(color);
+    };
+
+    const handleError = () => {
+      if (isCancelled) {
+        return;
+      }
+      applyThemeColor(THEME_COLOR_FALLBACK);
+    };
+
+    image.addEventListener('load', handleApplyColor);
+    image.addEventListener('error', handleError);
+    image.src = posterUrl;
+    image.decode?.().catch(() => {});
+
+    return () => {
+      isCancelled = true;
+      image.removeEventListener('load', handleApplyColor);
+      image.removeEventListener('error', handleError);
+    };
+  }, [activeMovie?.posterUrl]);
+
+  useEffect(() => {
+    if (!movies.length) {
+      return undefined;
+    }
+
+    const cleanupImages = [];
+    movies.forEach((movie) => {
+      const posterUrl = movie.posterUrl;
+      if (!posterUrl || preloadedPostersRef.current.has(posterUrl)) {
+        return;
+      }
+
+      preloadedPostersRef.current.add(posterUrl);
+      const image = new Image();
+      image.decoding = 'async';
+      image.loading = 'eager';
+      image.src = posterUrl;
+      image.decode?.().catch(() => {});
+      cleanupImages.push(image);
+    });
+
+    return () => {
+      cleanupImages.forEach((image) => {
+        image.src = '';
+      });
+    };
+  }, [movies]);
 
   useEffect(() => {
     void initializeRatingSync();
@@ -134,9 +300,6 @@ function App() {
   useEffect(() => {
     setRatings(emptyRatings);
   }, [emptyRatings]);
-
-  const activeMovie = movies[currentIndex];
-  const nextMovie = movies.length > 1 ? movies[(currentIndex + 1) % movies.length] : null;
 
   const withToolbarTransition = useCallback((update) => {
     const apply = () => {
@@ -667,6 +830,9 @@ function App() {
   ]);
 
   const handleOpenOverview = () => {
+    flushSync(() => {
+      setPosterSnapToken((value) => value + 1);
+    });
     withToolbarTransition(() => {
       setActiveRatingMovieId(null);
       setTransitionDirection(null);
@@ -833,7 +999,7 @@ function App() {
                           }`}
                         >
                           {posterUrl ? (
-                            <img src={posterUrl} alt={movie.title} loading="lazy" />
+                            <img src={posterUrl} alt={movie.title} loading="lazy" decoding="async" />
                           ) : (
                             <div className="overview-card__fallback">Ingen affisch</div>
                           )}
@@ -909,6 +1075,7 @@ function App() {
                 movie={activeMovie}
                 rating={ratings[activeMovie.id] ?? 0}
                 isRatingActive={activeRatingMovieId === activeMovie.id}
+                resetTrigger={posterSnapToken}
               />
             </div>
           ) : (
