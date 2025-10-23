@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
+import RatingRing from './components/RatingRing.jsx';
 import FloatingToolbar from './components/FloatingToolbar.jsx';
 import {
   loadAllRatings,
@@ -809,6 +810,8 @@ function App() {
                 <div className="overview-grid">
                   {overviewMovies.map(({ movie, index: movieIndex, ratingValue, hasScore }) => {
                     const posterUrl = movie.posterUrl ?? null;
+                    const ratingNumber = Number.isFinite(ratingValue) ? ratingValue : 0;
+                    const showScore = isScoreOverlayVisible && hasScore;
                     return (
                       <button
                         key={movie.id}
@@ -819,7 +822,7 @@ function App() {
                       >
                         <div
                           className={`overview-card__poster-shell ${
-                            isScoreOverlayVisible && hasScore ? 'overview-card__poster-shell--with-score' : ''
+                            showScore ? 'overview-card__poster-shell--with-score' : ''
                           }`}
                         >
                           {posterUrl ? (
@@ -827,11 +830,8 @@ function App() {
                           ) : (
                             <div className="overview-card__fallback">Ingen affisch</div>
                           )}
-                          {isScoreOverlayVisible && hasScore ? (
-                            <div className="overview-card__rating" aria-hidden="true">
-                              <span className="overview-card__rating-value">{ratingValue.toFixed(1)}</span>
-                              <span className="overview-card__rating-scale">/10</span>
-                            </div>
+                          {showScore ? (
+                            <RatingRing value={ratingNumber} className="overview-card__rating-ring" ariaHidden />
                           ) : null}
                         </div>
                       </button>

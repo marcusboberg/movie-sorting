@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import RatingRing from './RatingRing.jsx';
 
 const placeholderPoster =
   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900"%3E%3Crect width="600" height="900" fill="%23222222"/%3E%3Ctext x="50%25" y="50%25" fill="%23666666" font-size="48" text-anchor="middle" font-family="Inter, sans-serif"%3ENo Poster%3C/text%3E%3C/svg%3E';
@@ -10,9 +11,6 @@ function formatRuntime(minutes) {
   if (!hours) return `${mins}m`;
   return `${hours}h ${mins}m`;
 }
-
-const RING_RADIUS = 52;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 function MovieCard({ movie, rating = 0, isRatingActive = false }) {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -31,10 +29,6 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
   const overview =
     movie.overview ?? 'Plot summary unavailable right now.';
   const ratingValue = Number.isFinite(rating) ? rating : 0;
-  const ratingRatio = Math.min(Math.max(ratingValue / 10, 0), 1);
-  const strokeOffset = RING_CIRCUMFERENCE * (1 - ratingRatio);
-  const ratingColor = `hsl(${Math.round(120 * ratingRatio)}, 80%, 54%)`;
-
   return (
     <div className="movie-card-wrapper">
       <div className={`movie-card ${isFlipped ? 'movie-card--flipped' : ''}`}>
@@ -44,27 +38,7 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
           onClick={() => setIsFlipped((value) => !value)}
         >
           <div className="movie-poster-shell">
-            <div
-              className={`movie-rating-ring ${isRatingActive ? 'movie-rating-ring--active' : ''}`}
-              style={{ '--rating-ratio': ratingRatio, '--rating-color': ratingColor }}
-            >
-              <svg viewBox="0 0 120 120" aria-hidden="true">
-                <circle className="movie-rating-ring__background" cx="60" cy="60" r={RING_RADIUS} />
-                <circle
-                  className="movie-rating-ring__progress"
-                  cx="60"
-                  cy="60"
-                  r={RING_RADIUS}
-                  style={{
-                    strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-                    strokeDashoffset: strokeOffset,
-                  }}
-                />
-              </svg>
-              <div className="movie-rating-ring__value">
-                <span className="movie-rating-ring__value-number">{ratingValue.toFixed(1)}</span>
-              </div>
-            </div>
+            <RatingRing value={ratingValue} isActive={isRatingActive} />
             <div className={`movie-rating-preview ${isRatingActive ? 'movie-rating-preview--visible' : ''}`}>
               <span>{ratingValue.toFixed(1)}</span>
             </div>
