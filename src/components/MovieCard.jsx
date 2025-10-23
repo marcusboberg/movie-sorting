@@ -39,9 +39,6 @@ function MovieCard({ movie, rating = 0, isRatingActive = false }) {
         >
           <div className="movie-poster-shell">
             <RatingRing value={ratingValue} isActive={isRatingActive} />
-            <div className={`movie-rating-preview ${isRatingActive ? 'movie-rating-preview--visible' : ''}`}>
-              <span>{ratingValue.toFixed(1)}</span>
-            </div>
             <img
               src={posterUrl}
               alt={movie.title}

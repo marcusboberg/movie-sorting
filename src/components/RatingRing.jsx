@@ -31,21 +31,23 @@ function RatingRing({
       style={{ '--rating-ratio': ratingRatio, '--rating-color': ratingColor, ...style }}
       aria-hidden={ariaHidden}
     >
-      <svg viewBox="0 0 120 120" aria-hidden="true">
-        <circle className="movie-rating-ring__background" cx="60" cy="60" r={RING_RADIUS} />
-        <circle
-          className="movie-rating-ring__progress"
-          cx="60"
-          cy="60"
-          r={RING_RADIUS}
-          style={{
-            strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-            strokeDashoffset: strokeOffset,
-          }}
-        />
-      </svg>
-      <div className="movie-rating-ring__value">
-        <span className="movie-rating-ring__value-number">{ratingValue.toFixed(1)}</span>
+      <div className="movie-rating-ring__content">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle className="movie-rating-ring__background" cx="60" cy="60" r={RING_RADIUS} />
+          <circle
+            className="movie-rating-ring__progress"
+            cx="60"
+            cy="60"
+            r={RING_RADIUS}
+            style={{
+              strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
+              strokeDashoffset: strokeOffset,
+            }}
+          />
+        </svg>
+        <div className="movie-rating-ring__value">
+          <span className="movie-rating-ring__value-number">{ratingValue.toFixed(1)}</span>
+        </div>
       </div>
     </div>
   );
