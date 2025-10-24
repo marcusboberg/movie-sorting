@@ -104,8 +104,13 @@ function App() {
     if (typeof window === 'undefined') {
       return null;
     }
-    const stored = window.localStorage.getItem(USER_STORAGE_KEY);
-    return stored && USER_OPTIONS.includes(stored) ? stored : null;
+
+    try {
+      const stored = window.localStorage.getItem(USER_STORAGE_KEY);
+      return stored && USER_OPTIONS.includes(stored) ? stored : null;
+    } catch (_error) {
+      return null;
+    }
   });
   const [allRatings, setAllRatings] = useState(() =>
     USER_OPTIONS.reduce((accumulator, user) => {
@@ -300,7 +305,11 @@ function App() {
     if (!username || typeof window === 'undefined') {
       return;
     }
-    window.localStorage.setItem(USER_STORAGE_KEY, username);
+    try {
+      window.localStorage.setItem(USER_STORAGE_KEY, username);
+    } catch (_error) {
+      // Some browsers (notably Safari private mode) throw on access when storage is unavailable.
+    }
   }, [username]);
 
   useEffect(() => {
