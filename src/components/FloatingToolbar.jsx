@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './FloatingToolbar.css';
 
 function FloatingToolbar({
@@ -20,8 +20,12 @@ function FloatingToolbar({
   userOptions = [],
 }) {
   const surfaceRef = useRef(null);
+  const actionsContainerRef = useRef(null);
+  const actionRefs = useRef(new Map());
+  const updateExpandedActionRef = useRef(() => {});
   const previousModeRef = useRef(mode);
   const [openMenu, setOpenMenu] = useState(null);
+  const [expandedAction, setExpandedAction] = useState(null);
 
   useEffect(() => {
     if (previousModeRef.current === mode) {
@@ -69,6 +73,20 @@ function FloatingToolbar({
   const handleToggleMenu = (menu) => {
     setOpenMenu((current) => (current === menu ? null : menu));
   };
+
+  const registerActionRef = useCallback(
+    (key) => (element) => {
+      if (element) {
+        actionRefs.current.set(key, element);
+        requestAnimationFrame(() => {
+          updateExpandedActionRef.current();
+        });
+      } else {
+        actionRefs.current.delete(key);
+      }
+    },
+    [],
+  );
 
   const handleFilterChange = (value) => {
     if (typeof onFilterChange === 'function') {
@@ -154,6 +172,104 @@ function FloatingToolbar({
 
   const toolbarLabel = useMemo(() => (isPosterView ? 'Filmvy' : 'Affischöversikt'), [isPosterView]);
 
+  const updateExpandedAction = useCallback(() => {
+    if (isPosterView) {
+      setExpandedAction(null);
+      return;
+    }
+
+    const container = actionsContainerRef.current;
+    if (!container) {
+      setExpandedAction(null);
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    if (!containerRect || containerRect.width <= 0) {
+      setExpandedAction(null);
+      return;
+    }
+
+    const containerCenter = containerRect.left + containerRect.width / 2;
+    let bestKey = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    actionRefs.current.forEach((element, key) => {
+      if (!element) {
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+      if (!rect || rect.width <= 0) {
+        return;
+      }
+
+      const actionCenter = rect.left + rect.width / 2;
+      const distance = Math.abs(actionCenter - containerCenter);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestKey = key;
+      }
+    });
+
+    setExpandedAction((current) => (current === bestKey ? current : bestKey));
+  }, [isPosterView]);
+
+  updateExpandedActionRef.current = updateExpandedAction;
+
+  useEffect(() => {
+    if (isPosterView) {
+      setExpandedAction(null);
+      return undefined;
+    }
+
+    const container = actionsContainerRef.current;
+    if (!container) {
+      return undefined;
+    }
+
+    let frameId = null;
+
+    const handleScroll = () => {
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+      }
+
+      frameId = requestAnimationFrame(() => {
+        updateExpandedActionRef.current();
+      });
+    };
+
+    handleScroll();
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+      }
+    };
+  }, [isPosterView]);
+
+  useEffect(() => {
+    if (!isPosterView) {
+      requestAnimationFrame(() => {
+        updateExpandedActionRef.current();
+      });
+    }
+  }, [
+    isPosterView,
+    filterOption,
+    sortOption,
+    scoreRangeMin,
+    scoreRangeMax,
+    isScoreOverlayVisible,
+    openMenu,
+  ]);
+
   return (
     <nav className="floating-toolbar" aria-label={`Verktygsrad för ${toolbarLabel}`}>
       <div className="floating-toolbar__surface" ref={surfaceRef}>
@@ -199,14 +315,21 @@ function FloatingToolbar({
             </button>
           </div>
         ) : (
-          <div className="floating-toolbar__actions floating-toolbar__actions--overview">
+          <div
+            className="floating-toolbar__actions floating-toolbar__actions--overview"
+            ref={actionsContainerRef}
+          >
             <div className="floating-toolbar__action-wrapper">
               <button
                 type="button"
-                className="floating-toolbar__action"
+                className={`floating-toolbar__action ${
+                  expandedAction === 'filter' ? 'floating-toolbar__action--expanded' : ''
+                }`}
                 onClick={() => handleToggleMenu('filter')}
                 aria-haspopup="true"
                 aria-expanded={openMenu === 'filter'}
+                aria-label="Filter"
+                ref={registerActionRef('filter')}
               >
                 <i className="fa-solid fa-filter" aria-hidden="true" />
                 <span>Filter</span>
@@ -300,10 +423,14 @@ function FloatingToolbar({
             <div className="floating-toolbar__action-wrapper">
               <button
                 type="button"
-                className="floating-toolbar__action"
+                className={`floating-toolbar__action ${
+                  expandedAction === 'sort' ? 'floating-toolbar__action--expanded' : ''
+                }`}
                 onClick={() => handleToggleMenu('sort')}
                 aria-haspopup="true"
                 aria-expanded={openMenu === 'sort'}
+                aria-label="Sortera"
+                ref={registerActionRef('sort')}
               >
                 <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
                 <span>Sortera</span>
@@ -332,9 +459,11 @@ function FloatingToolbar({
               type="button"
               className={`floating-toolbar__action floating-toolbar__action--toggle ${
                 isScoreOverlayVisible ? 'floating-toolbar__action--toggle-active' : ''
-              }`}
+              } ${expandedAction === 'score-toggle' ? 'floating-toolbar__action--expanded' : ''}`}
               onClick={onToggleScoreOverlay}
               aria-pressed={isScoreOverlayVisible}
+              aria-label={isScoreOverlayVisible ? 'Dölj betyg' : 'Visa betyg'}
+              ref={registerActionRef('score-toggle')}
             >
               <i className="fa-solid fa-layer-group" aria-hidden="true" />
               <span>{isScoreOverlayVisible ? 'Dölj betyg' : 'Visa betyg'}</span>
