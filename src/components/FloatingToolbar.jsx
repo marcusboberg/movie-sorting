@@ -70,8 +70,44 @@ function FloatingToolbar({
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [openMenu]);
 
+  const isPosterView = mode !== 'overview';
+
+  const scrollActionIntoCenter = useCallback((key, { behavior = 'smooth' } = {}) => {
+    const container = actionsContainerRef.current;
+    const element = actionRefs.current.get(key);
+
+    if (!container || !element) {
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+
+    if (!containerRect || containerRect.width <= 0 || !elementRect || elementRect.width <= 0) {
+      return;
+    }
+
+    const containerCenter = containerRect.left + containerRect.width / 2;
+    const elementCenter = elementRect.left + elementRect.width / 2;
+    const offset = elementCenter - containerCenter;
+    const targetScroll = container.scrollLeft + offset;
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    const clampedScroll = Math.max(0, Math.min(Number.isFinite(maxScroll) ? maxScroll : 0, targetScroll));
+
+    container.scrollTo({
+      left: clampedScroll,
+      behavior,
+    });
+  }, []);
+
   const handleToggleMenu = (menu) => {
-    setOpenMenu((current) => (current === menu ? null : menu));
+    const nextMenu = openMenu === menu ? null : menu;
+
+    if (nextMenu) {
+      scrollActionIntoCenter(nextMenu);
+    }
+
+    setOpenMenu(nextMenu);
   };
 
   const registerActionRef = useCallback(
@@ -80,12 +116,18 @@ function FloatingToolbar({
         actionRefs.current.set(key, element);
         requestAnimationFrame(() => {
           updateExpandedActionRef.current();
+          if (!isPosterView) {
+            const targetKey = openMenu ?? expandedAction ?? 'filter';
+            if (targetKey === key) {
+              scrollActionIntoCenter(key, { behavior: 'auto' });
+            }
+          }
         });
       } else {
         actionRefs.current.delete(key);
       }
     },
-    [],
+    [expandedAction, isPosterView, openMenu, scrollActionIntoCenter],
   );
 
   const handleFilterChange = (value) => {
@@ -93,6 +135,7 @@ function FloatingToolbar({
       onFilterChange(value);
     }
     setOpenMenu(value === 'scoreRange' ? 'filter' : null);
+    scrollActionIntoCenter('filter');
   };
 
   const handleSortChange = (value) => {
@@ -100,6 +143,7 @@ function FloatingToolbar({
       onSortChange(value);
     }
     setOpenMenu(null);
+    scrollActionIntoCenter('sort');
   };
 
   const sanitizedScoreRange = useMemo(() => {
@@ -126,6 +170,7 @@ function FloatingToolbar({
       onUserChange(user);
     }
     setOpenMenu(null);
+    scrollActionIntoCenter('filter');
   };
 
   const updateScoreRange = (type, rawValue) => {
@@ -167,8 +212,6 @@ function FloatingToolbar({
   const handleScoreRangeNumberChange = (type) => (event) => {
     updateScoreRange(type, event.target.value);
   };
-
-  const isPosterView = mode !== 'overview';
 
   const toolbarLabel = useMemo(() => (isPosterView ? 'Filmvy' : 'Affischöversikt'), [isPosterView]);
 
@@ -258,6 +301,7 @@ function FloatingToolbar({
     if (!isPosterView) {
       requestAnimationFrame(() => {
         updateExpandedActionRef.current();
+        scrollActionIntoCenter(openMenu ?? expandedAction ?? 'filter', { behavior: 'auto' });
       });
     }
   }, [
@@ -268,6 +312,8 @@ function FloatingToolbar({
     scoreRangeMax,
     isScoreOverlayVisible,
     openMenu,
+    expandedAction,
+    scrollActionIntoCenter,
   ]);
 
   return (
@@ -319,6 +365,7 @@ function FloatingToolbar({
             className="floating-toolbar__actions floating-toolbar__actions--overview"
             ref={actionsContainerRef}
           >
+            <div className="floating-toolbar__actions-indicator" aria-hidden="true" />
             <div className="floating-toolbar__action-wrapper">
               <button
                 type="button"
