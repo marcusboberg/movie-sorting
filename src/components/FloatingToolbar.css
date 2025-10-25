@@ -336,6 +336,10 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.floating-toolbar__actions-indicator {
+  display: none;
+}
+
 @media (max-width: 520px) {
   .floating-toolbar {
     padding: 0 16px;
@@ -351,16 +355,34 @@
   }
 
   .floating-toolbar__actions--overview {
+    position: relative;
     overflow-x: auto;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
+    scroll-snap-type: x mandatory;
+    scroll-snap-stop: always;
     padding-bottom: 6px;
     margin: 0 -6px;
     padding-left: 6px;
     padding-right: 6px;
+    --floating-toolbar-action-collapsed-width: 44px;
+    scroll-padding-inline: max(
+      0px,
+      calc(50% - var(--floating-toolbar-action-collapsed-width) / 2)
+    );
     mask-image: linear-gradient(to right, transparent, rgba(0, 0, 0, 1) 20px, rgba(0, 0, 0, 1) calc(100% - 20px), transparent);
     -webkit-mask-image: linear-gradient(to right, transparent, rgba(0, 0, 0, 1) 20px, rgba(0, 0, 0, 1) calc(100% - 20px), transparent);
+  }
+
+  .floating-toolbar__actions--overview::before,
+  .floating-toolbar__actions--overview::after {
+    content: '';
+    display: block;
+    flex: 0 0 max(
+      0px,
+      calc(50% - var(--floating-toolbar-action-collapsed-width) / 2)
+    );
+    pointer-events: none;
   }
 
   .floating-toolbar__actions--overview::-webkit-scrollbar {
@@ -405,6 +427,22 @@
     transform: translateY(0);
     margin-left: 8px;
     pointer-events: auto;
+  }
+
+  .floating-toolbar__actions-indicator {
+    display: block;
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 56px;
+    height: 56px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.4),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.1), transparent 70%);
+    pointer-events: none;
   }
 }
 
