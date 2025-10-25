@@ -3,7 +3,6 @@ import { flushSync } from 'react-dom';
 import rawMovies from './movies.json';
 import MovieCard from './components/MovieCard.jsx';
 import RatingRing from './components/RatingRing.jsx';
-import FloatingToolbar from './components/FloatingToolbar.jsx';
 import {
   loadAllRatings,
   loadUserRatings,
@@ -62,6 +61,19 @@ const USER_OPTIONS = [...USERNAMES];
 const USER_STORAGE_KEY = 'movie-sorting.activeUser';
 const THEME_COLOR_FALLBACK = '#040404';
 
+const getStoredUsername = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(USER_STORAGE_KEY);
+    return stored && USER_OPTIONS.includes(stored) ? stored : null;
+  } catch (_error) {
+    return null;
+  }
+};
+
 const toHexColor = (red, green, blue) => {
   const clamp = (value) => Math.max(0, Math.min(255, Math.round(value)));
   const toHex = (value) => clamp(value).toString(16).padStart(2, '0');
@@ -100,18 +112,7 @@ function App() {
     ratingsRef.current = ratings;
   }, [ratings]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [username, setUsername] = useState(() => {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    try {
-      const stored = window.localStorage.getItem(USER_STORAGE_KEY);
-      return stored && USER_OPTIONS.includes(stored) ? stored : null;
-    } catch (_error) {
-      return null;
-    }
-  });
+  const [username, setUsername] = useState(getStoredUsername);
   const [allRatings, setAllRatings] = useState(() =>
     USER_OPTIONS.reduce((accumulator, user) => {
       accumulator[user] = {};
@@ -126,6 +127,8 @@ function App() {
   const [scoreFilterRange, setScoreFilterRange] = useState([0, 10]);
   const [overviewSort, setOverviewSort] = useState('viewingOrder');
   const [isScoreOverlayVisible, setIsScoreOverlayVisible] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isUserPickerOpen, setIsUserPickerOpen] = useState(() => !getStoredUsername());
   const swipeAreaRef = useRef(null);
   const appShellRef = useRef(null);
   const [posterSession, setPosterSession] = useState(0);
@@ -917,9 +920,16 @@ function App() {
 
   const handleUserSelection = useCallback(
     (nextUser) => {
-      if (!nextUser || !USER_OPTIONS.includes(nextUser) || nextUser === username) {
+      if (!nextUser || !USER_OPTIONS.includes(nextUser)) {
         return;
       }
+
+      setIsUserPickerOpen(false);
+
+      if (nextUser === username) {
+        return;
+      }
+
       setUsername(nextUser);
       setOverviewMode('grid');
     },
@@ -996,7 +1006,27 @@ function App() {
     });
   }, [allRatings, movies, normalizeRating]);
 
-  const shouldShowUserPicker = !username;
+  const shouldShowUserPicker = isUserPickerOpen || !username;
+
+  const handleOpenSettings = useCallback(() => {
+    setIsSettingsOpen(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+  }, []);
+
+  const handleOpenUserPicker = useCallback(() => {
+    setIsUserPickerOpen(true);
+  }, []);
+
+  const handleCloseUserPicker = useCallback(() => {
+    if (!username) {
+      return;
+    }
+
+    setIsUserPickerOpen(false);
+  }, [username]);
 
   return (
     <div
@@ -1009,174 +1039,58 @@ function App() {
       }
     >
       <div className={`app-stage ${isOverviewOpen ? 'app-stage--overview' : 'app-stage--focused'}`}>
+        <header className="app-header">
+          <button
+            type="button"
+            className="app-avatar-button"
+            onClick={handleOpenUserPicker}
+            aria-label={username ? `Aktiv profil ${username}` : 'Välj profil'}
+          >
+            {username ? (
+              <span className="app-avatar-button__initial">{username.slice(0, 1)}</span>
+            ) : (
+              <i className="fa-solid fa-user" aria-hidden="true" />
+            )}
+          </button>
+          <div className="app-header__titles">
+            <h1 className="app-title">Filmkväll</h1>
+            <p className="app-subtitle">Utforska, betygsätt och jämför filmer med vänner.</p>
+          </div>
+          <button
+            type="button"
+            className="app-settings-button"
+            onClick={handleOpenSettings}
+            aria-label="Öppna inställningar"
+          >
+            <i className="fa-solid fa-gear" aria-hidden="true" />
+          </button>
+        </header>
+        <div className="view-toggle" role="tablist" aria-label="Visa läge">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isOverviewOpen}
+            className={`view-toggle__button ${!isOverviewOpen ? 'view-toggle__button--active' : ''}`}
+            onClick={handleCloseOverview}
+          >
+            Affischer
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isOverviewOpen}
+            className={`view-toggle__button ${isOverviewOpen ? 'view-toggle__button--active' : ''}`}
+            onClick={handleOpenOverview}
+          >
+            Översikt
+          </button>
+        </div>
         <main
           className={`app-main ${isOverviewOpen ? 'app-main--overview' : 'app-main--focused'}`}
           ref={isOverviewOpen ? undefined : swipeAreaRef}
         >
           {isOverviewOpen ? (
-            <div className="overview-panel">
-              <div className="overview-panel__header">
-                <div className="overview-tabs" role="tablist" aria-label="Vy">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={overviewMode === 'grid'}
-                    className={`overview-tab ${overviewMode === 'grid' ? 'overview-tab--active' : ''}`}
-                    onClick={() => setOverviewMode('grid')}
-                  >
-                    Affischer
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={overviewMode === 'compare'}
-                    className={`overview-tab ${overviewMode === 'compare' ? 'overview-tab--active' : ''}`}
-                    onClick={() => setOverviewMode('compare')}
-                  >
-                    Jämför
-                  </button>
-                </div>
-              </div>
-              <div className="overview-panel__controls">
-                <section id="profile-settings" className="overview-control">
-                  <h2 className="overview-control__title">Profil</h2>
-                  <p className="overview-control__description">
-                    Välj vem som sätter betygen.
-                  </p>
-                  <div className="overview-control__options">
-                    {USER_OPTIONS.map((user) => (
-                      <button
-                        key={user}
-                        type="button"
-                        className={`overview-control__option ${
-                          username === user ? 'overview-control__option--active' : ''
-                        }`}
-                        onClick={() => handleUserSelection(user)}
-                        aria-pressed={username === user}
-                      >
-                        {user}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <section id="overview-filter" className="overview-control">
-                  <label className="overview-control__title" htmlFor="overview-filter-select">
-                    Filter
-                  </label>
-                  <p className="overview-control__description">
-                    Begränsa vilka filmer som visas i listan.
-                  </p>
-                  <select
-                    id="overview-filter-select"
-                    className="overview-control__select"
-                    value={overviewFilter}
-                    onChange={(event) => setOverviewFilter(event.target.value)}
-                  >
-                    {filterOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  {overviewFilter === 'scoreRange' ? (
-                    <div className="overview-score-range">
-                      <div className="overview-score-range__header">
-                        <span className="overview-score-range__label">Score span</span>
-                        <span className="overview-score-range__value">
-                          {scoreFilterMin.toFixed(1)} – {scoreFilterMax.toFixed(1)}
-                        </span>
-                      </div>
-                      <div className="overview-score-range__sliders">
-                        <label className="overview-score-range__field">
-                          <span>Min</span>
-                          <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            step="0.5"
-                            value={scoreFilterMin}
-                            onChange={handleScoreFilterSliderChange('min')}
-                          />
-                        </label>
-                        <label className="overview-score-range__field">
-                          <span>Max</span>
-                          <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            step="0.5"
-                            value={scoreFilterMax}
-                            onChange={handleScoreFilterSliderChange('max')}
-                          />
-                        </label>
-                      </div>
-                      <div className="overview-score-range__inputs">
-                        <label className="overview-score-range__input">
-                          <span>Min</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={scoreFilterMin}
-                            onChange={handleScoreFilterNumberChange('min')}
-                          />
-                        </label>
-                        <label className="overview-score-range__input">
-                          <span>Max</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={scoreFilterMax}
-                            onChange={handleScoreFilterNumberChange('max')}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  ) : null}
-                </section>
-
-                <section id="overview-sort" className="overview-control">
-                  <label className="overview-control__title" htmlFor="overview-sort-select">
-                    Sortera
-                  </label>
-                  <p className="overview-control__description">
-                    Bestäm ordningen på filmerna i listan.
-                  </p>
-                  <select
-                    id="overview-sort-select"
-                    className="overview-control__select"
-                    value={overviewSort}
-                    onChange={(event) => setOverviewSort(event.target.value)}
-                  >
-                    {sortOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </section>
-
-                <section id="score-visibility" className="overview-control">
-                  <h2 className="overview-control__title">Betyg</h2>
-                  <p className="overview-control__description">
-                    Visa eller dölj betygsringarna i översikten.
-                  </p>
-                  <button
-                    type="button"
-                    className={`overview-control__toggle ${
-                      isScoreOverlayVisible ? 'overview-control__toggle--active' : ''
-                    }`}
-                    onClick={() => setIsScoreOverlayVisible((value) => !value)}
-                    aria-pressed={isScoreOverlayVisible}
-                  >
-                    {isScoreOverlayVisible ? 'Dölj betyg' : 'Visa betyg'}
-                  </button>
-                </section>
-              </div>
+            <div className="overview-content">
               {overviewMode === 'grid' ? (
                 <div className="overview-grid">
                   {overviewMovies.map(({ movie, index: movieIndex, ratingValue, hasScore }) => {
@@ -1278,17 +1192,28 @@ function App() {
             <div className="movie-stage movie-stage--empty">Inga filmer att visa.</div>
           )}
         </main>
-
       </div>
-      <FloatingToolbar
-        mode={isOverviewOpen ? 'overview' : 'poster'}
-        onNavigateToOverview={handleOpenOverview}
-        onNavigateToPoster={handleCloseOverview}
-      />
       {shouldShowUserPicker ? (
         <div className="user-picker-overlay">
-          <div className="user-picker" role="dialog" aria-modal="true" aria-labelledby="user-picker-title">
-            <h2 id="user-picker-title">Vem är du?</h2>
+          <div
+            className="user-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="user-picker-title"
+          >
+            <div className="user-picker__header">
+              <h2 id="user-picker-title">Vem är du?</h2>
+              {username ? (
+                <button
+                  type="button"
+                  className="user-picker__close"
+                  onClick={handleCloseUserPicker}
+                  aria-label="Stäng profilväljaren"
+                >
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
             <p className="user-picker__subtitle">Välj din profil för att synka betygen.</p>
             <div className="user-picker__options">
               {USER_OPTIONS.map((user) => (
@@ -1301,6 +1226,187 @@ function App() {
                   {user}
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {isSettingsOpen ? (
+        <div className="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+          <div className="settings-overlay__backdrop" onClick={handleCloseSettings} />
+          <div className="settings-panel">
+            <header className="settings-panel__header">
+              <div>
+                <p className="settings-panel__eyebrow">Inställningar</p>
+                <h2 id="settings-title" className="settings-panel__title">
+                  Anpassa din upplevelse
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="settings-panel__close"
+                onClick={handleCloseSettings}
+                aria-label="Stäng inställningar"
+              >
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
+              </button>
+            </header>
+            <div className="settings-panel__sections">
+              <section className="settings-section">
+                <h3 className="settings-section__title">Profil</h3>
+                <p className="settings-section__description">
+                  Välj vilken profil som används när du sparar betyg.
+                </p>
+                <div className="settings-section__options">
+                  {USER_OPTIONS.map((user) => (
+                    <button
+                      key={user}
+                      type="button"
+                      className={`settings-chip ${username === user ? 'settings-chip--active' : ''}`}
+                      onClick={() => handleUserSelection(user)}
+                    >
+                      {user}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h3 className="settings-section__title">Visningsläge</h3>
+                <p className="settings-section__description">
+                  Växla mellan affischer och betygstabell i översikten.
+                </p>
+                <div className="settings-section__options">
+                  <button
+                    type="button"
+                    className={`settings-chip ${overviewMode === 'grid' ? 'settings-chip--active' : ''}`}
+                    onClick={() => setOverviewMode('grid')}
+                  >
+                    Affischer
+                  </button>
+                  <button
+                    type="button"
+                    className={`settings-chip ${overviewMode === 'compare' ? 'settings-chip--active' : ''}`}
+                    onClick={() => setOverviewMode('compare')}
+                  >
+                    Jämför
+                  </button>
+                </div>
+              </section>
+
+              <section className="settings-section" id="settings-filter">
+                <h3 className="settings-section__title">Filter</h3>
+                <p className="settings-section__description">
+                  Bestäm vilka filmer som ska synas i översikten.
+                </p>
+                <div className="settings-section__options">
+                  {filterOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`settings-chip ${
+                        overviewFilter === option.value ? 'settings-chip--active' : ''
+                      }`}
+                      onClick={() => setOverviewFilter(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                {overviewFilter === 'scoreRange' ? (
+                  <div className="settings-score-range">
+                    <div className="settings-score-range__sliders">
+                      <label className="settings-score-range__field">
+                        <span>Min</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="10"
+                          step="0.5"
+                          value={scoreFilterMin}
+                          onChange={handleScoreFilterSliderChange('min')}
+                        />
+                      </label>
+                      <label className="settings-score-range__field">
+                        <span>Max</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="10"
+                          step="0.5"
+                          value={scoreFilterMax}
+                          onChange={handleScoreFilterSliderChange('max')}
+                        />
+                      </label>
+                    </div>
+                    <div className="settings-score-range__inputs">
+                      <label className="settings-score-range__input">
+                        <span>Min</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          value={scoreFilterMin}
+                          onChange={handleScoreFilterNumberChange('min')}
+                        />
+                      </label>
+                      <label className="settings-score-range__input">
+                        <span>Max</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          value={scoreFilterMax}
+                          onChange={handleScoreFilterNumberChange('max')}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="settings-section">
+                <div className="settings-section__header">
+                  <div>
+                    <h3 className="settings-section__title">Sortering</h3>
+                    <p className="settings-section__description">
+                      Välj hur filmerna ska sorteras i översikten.
+                    </p>
+                  </div>
+                  <div className="settings-select">
+                    <select
+                      value={overviewSort}
+                      onChange={(event) => setOverviewSort(event.target.value)}
+                      aria-label="Välj sorteringsordning"
+                    >
+                      {sortOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h3 className="settings-section__title">Betygsringar</h3>
+                <p className="settings-section__description">
+                  Styr om betygen visas ovanpå affischerna i översikten.
+                </p>
+                <button
+                  type="button"
+                  className={`settings-toggle ${isScoreOverlayVisible ? 'settings-toggle--active' : ''}`}
+                  onClick={() => setIsScoreOverlayVisible((value) => !value)}
+                  aria-pressed={isScoreOverlayVisible}
+                >
+                  <span className="settings-toggle__label">
+                    {isScoreOverlayVisible ? 'Betyg visas' : 'Betyg dolda'}
+                  </span>
+                  <span className="settings-toggle__thumb" aria-hidden="true" />
+                </button>
+              </section>
             </div>
           </div>
         </div>
