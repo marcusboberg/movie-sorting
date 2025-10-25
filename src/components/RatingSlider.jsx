@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const markers = Array.from({ length: 11 }, (_, index) => index);
@@ -6,6 +6,7 @@ const markers = Array.from({ length: 11 }, (_, index) => index);
 function RatingSlider({ value, onChange, onCommit, onInteractionChange }) {
   const trackRef = useRef(null);
   const pointerActiveRef = useRef(false);
+  const [isPointerActive, setIsPointerActive] = useState(false);
 
   const updateValueFromPointer = useCallback(
     (event) => {
@@ -26,6 +27,7 @@ function RatingSlider({ value, onChange, onCommit, onInteractionChange }) {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       event.currentTarget.setPointerCapture?.(event.pointerId);
       pointerActiveRef.current = true;
+      setIsPointerActive(true);
 
       const nextValue = updateValueFromPointer(event);
       onInteractionChange?.(true);
@@ -49,6 +51,7 @@ function RatingSlider({ value, onChange, onCommit, onInteractionChange }) {
     (event) => {
       if (!pointerActiveRef.current) return;
       pointerActiveRef.current = false;
+      setIsPointerActive(false);
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
@@ -66,6 +69,7 @@ function RatingSlider({ value, onChange, onCommit, onInteractionChange }) {
     (event) => {
       if (!pointerActiveRef.current) return;
       pointerActiveRef.current = false;
+      setIsPointerActive(false);
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
@@ -77,11 +81,11 @@ function RatingSlider({ value, onChange, onCommit, onInteractionChange }) {
   const fillRatio = clamp((value ?? 0) / 10, 0, 1);
 
   return (
-    <div className="rating-slider">
+    <div className={`rating-slider${isPointerActive ? ' rating-slider--active' : ''}`}>
       <div className="rating-label">Dra för att betygsätta</div>
       <div
         ref={trackRef}
-        className="rating-track"
+        className={`rating-track${isPointerActive ? ' rating-track--interacting' : ''}`}
         style={{ '--rating-ratio': fillRatio }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

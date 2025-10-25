@@ -21,11 +21,30 @@ function FloatingToolbar({
 }) {
   const surfaceRef = useRef(null);
   const actionsContainerRef = useRef(null);
-  const actionRefs = useRef(new Map());
-  const updateExpandedActionRef = useRef(() => {});
-  const previousModeRef = useRef(mode);
   const [openMenu, setOpenMenu] = useState(null);
   const [expandedAction, setExpandedAction] = useState(null);
+  const actionRefs = useRef(new Map());
+  const updateExpandedActionRef = useRef(() => {});
+  const expandedActionRef = useRef(expandedAction);
+  const openMenuRef = useRef(openMenu);
+  const isUserInteractingRef = useRef(false);
+  const previousModeRef = useRef(mode);
+
+  useEffect(() => {
+    expandedActionRef.current = expandedAction;
+  }, [expandedAction]);
+
+  useEffect(() => {
+    openMenuRef.current = openMenu;
+  }, [openMenu]);
+
+  useEffect(() => {
+    if (mode === 'overview') {
+      return;
+    }
+
+    isUserInteractingRef.current = false;
+  }, [mode]);
 
   useEffect(() => {
     if (previousModeRef.current === mode) {
@@ -298,7 +317,52 @@ function FloatingToolbar({
   }, [isPosterView]);
 
   useEffect(() => {
-    if (!isPosterView) {
+    if (isPosterView) {
+      return undefined;
+    }
+
+    const container = actionsContainerRef.current;
+    if (!container) {
+      return undefined;
+    }
+
+    let pointerCount = 0;
+
+    const beginInteraction = () => {
+      pointerCount += 1;
+      isUserInteractingRef.current = true;
+    };
+
+    const endInteraction = () => {
+      pointerCount = Math.max(0, pointerCount - 1);
+      if (pointerCount > 0) {
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        isUserInteractingRef.current = false;
+        updateExpandedActionRef.current();
+        const targetKey = openMenuRef.current ?? expandedActionRef.current ?? 'filter';
+        scrollActionIntoCenter(targetKey, { behavior: 'smooth' });
+      });
+    };
+
+    container.addEventListener('pointerdown', beginInteraction, { passive: true });
+    container.addEventListener('pointerup', endInteraction, { passive: true });
+    container.addEventListener('pointercancel', endInteraction, { passive: true });
+    container.addEventListener('pointerleave', endInteraction, { passive: true });
+
+    return () => {
+      container.removeEventListener('pointerdown', beginInteraction);
+      container.removeEventListener('pointerup', endInteraction);
+      container.removeEventListener('pointercancel', endInteraction);
+      container.removeEventListener('pointerleave', endInteraction);
+      isUserInteractingRef.current = false;
+    };
+  }, [isPosterView, scrollActionIntoCenter]);
+
+  useEffect(() => {
+    if (!isPosterView && !isUserInteractingRef.current) {
       requestAnimationFrame(() => {
         updateExpandedActionRef.current();
         scrollActionIntoCenter(openMenu ?? expandedAction ?? 'filter', { behavior: 'auto' });
