@@ -829,6 +829,10 @@ p {
   transition: transform 140ms ease;
 }
 
+.rating-track--interacting .rating-track-fill {
+  transition: none;
+}
+
 .rating-track-thumb {
   position: absolute;
   top: 50%;
@@ -842,6 +846,10 @@ p {
   pointer-events: none;
   transition: transform 120ms ease, left 120ms ease;
   left: calc(18px + (100% - 36px) * var(--rating-ratio));
+}
+
+.rating-track--interacting .rating-track-thumb {
+  transition: none;
 }
 
 .rating-track-markers {
