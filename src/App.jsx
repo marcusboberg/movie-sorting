@@ -446,6 +446,49 @@ function App() {
     });
   }, []);
 
+  const [scoreFilterMin, scoreFilterMax] = Array.isArray(scoreFilterRange)
+    ? scoreFilterRange
+    : [0, 10];
+
+  const updateScoreFilterInput = useCallback(
+    (type, rawValue) => {
+      const numeric =
+        typeof rawValue === 'number' && Number.isFinite(rawValue)
+          ? rawValue
+          : Number.parseFloat(rawValue);
+
+      if (!Number.isFinite(numeric)) {
+        if (type === 'min') {
+          handleScoreFilterRangeChange([0, scoreFilterMax]);
+        } else {
+          handleScoreFilterRangeChange([scoreFilterMin, 10]);
+        }
+        return;
+      }
+
+      if (type === 'min') {
+        handleScoreFilterRangeChange([numeric, scoreFilterMax]);
+      } else {
+        handleScoreFilterRangeChange([scoreFilterMin, numeric]);
+      }
+    },
+    [handleScoreFilterRangeChange, scoreFilterMax, scoreFilterMin],
+  );
+
+  const handleScoreFilterSliderChange = useCallback(
+    (type) => (event) => {
+      updateScoreFilterInput(type, event.target.value);
+    },
+    [updateScoreFilterInput],
+  );
+
+  const handleScoreFilterNumberChange = useCallback(
+    (type) => (event) => {
+      updateScoreFilterInput(type, event.target.value);
+    },
+    [updateScoreFilterInput],
+  );
+
   const areRatingMapsEqual = useCallback((first = {}, second = {}) => {
     const firstKeys = Object.keys(first);
     const secondKeys = Object.keys(second);
@@ -994,6 +1037,146 @@ function App() {
                   </button>
                 </div>
               </div>
+              <div className="overview-panel__controls">
+                <section id="profile-settings" className="overview-control">
+                  <h2 className="overview-control__title">Profil</h2>
+                  <p className="overview-control__description">
+                    Välj vem som sätter betygen.
+                  </p>
+                  <div className="overview-control__options">
+                    {USER_OPTIONS.map((user) => (
+                      <button
+                        key={user}
+                        type="button"
+                        className={`overview-control__option ${
+                          username === user ? 'overview-control__option--active' : ''
+                        }`}
+                        onClick={() => handleUserSelection(user)}
+                        aria-pressed={username === user}
+                      >
+                        {user}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <section id="overview-filter" className="overview-control">
+                  <label className="overview-control__title" htmlFor="overview-filter-select">
+                    Filter
+                  </label>
+                  <p className="overview-control__description">
+                    Begränsa vilka filmer som visas i listan.
+                  </p>
+                  <select
+                    id="overview-filter-select"
+                    className="overview-control__select"
+                    value={overviewFilter}
+                    onChange={(event) => setOverviewFilter(event.target.value)}
+                  >
+                    {filterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {overviewFilter === 'scoreRange' ? (
+                    <div className="overview-score-range">
+                      <div className="overview-score-range__header">
+                        <span className="overview-score-range__label">Score span</span>
+                        <span className="overview-score-range__value">
+                          {scoreFilterMin.toFixed(1)} – {scoreFilterMax.toFixed(1)}
+                        </span>
+                      </div>
+                      <div className="overview-score-range__sliders">
+                        <label className="overview-score-range__field">
+                          <span>Min</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            step="0.5"
+                            value={scoreFilterMin}
+                            onChange={handleScoreFilterSliderChange('min')}
+                          />
+                        </label>
+                        <label className="overview-score-range__field">
+                          <span>Max</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            step="0.5"
+                            value={scoreFilterMax}
+                            onChange={handleScoreFilterSliderChange('max')}
+                          />
+                        </label>
+                      </div>
+                      <div className="overview-score-range__inputs">
+                        <label className="overview-score-range__input">
+                          <span>Min</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={scoreFilterMin}
+                            onChange={handleScoreFilterNumberChange('min')}
+                          />
+                        </label>
+                        <label className="overview-score-range__input">
+                          <span>Max</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={scoreFilterMax}
+                            onChange={handleScoreFilterNumberChange('max')}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section id="overview-sort" className="overview-control">
+                  <label className="overview-control__title" htmlFor="overview-sort-select">
+                    Sortera
+                  </label>
+                  <p className="overview-control__description">
+                    Bestäm ordningen på filmerna i listan.
+                  </p>
+                  <select
+                    id="overview-sort-select"
+                    className="overview-control__select"
+                    value={overviewSort}
+                    onChange={(event) => setOverviewSort(event.target.value)}
+                  >
+                    {sortOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </section>
+
+                <section id="score-visibility" className="overview-control">
+                  <h2 className="overview-control__title">Betyg</h2>
+                  <p className="overview-control__description">
+                    Visa eller dölj betygsringarna i översikten.
+                  </p>
+                  <button
+                    type="button"
+                    className={`overview-control__toggle ${
+                      isScoreOverlayVisible ? 'overview-control__toggle--active' : ''
+                    }`}
+                    onClick={() => setIsScoreOverlayVisible((value) => !value)}
+                    aria-pressed={isScoreOverlayVisible}
+                  >
+                    {isScoreOverlayVisible ? 'Dölj betyg' : 'Visa betyg'}
+                  </button>
+                </section>
+              </div>
               {overviewMode === 'grid' ? (
                 <div className="overview-grid">
                   {overviewMovies.map(({ movie, index: movieIndex, ratingValue, hasScore }) => {
@@ -1101,19 +1284,6 @@ function App() {
         mode={isOverviewOpen ? 'overview' : 'poster'}
         onNavigateToOverview={handleOpenOverview}
         onNavigateToPoster={handleCloseOverview}
-        currentUser={username}
-        userOptions={USER_OPTIONS}
-        onUserChange={handleUserSelection}
-        filterOption={overviewFilter}
-        onFilterChange={setOverviewFilter}
-        sortOption={overviewSort}
-        onSortChange={setOverviewSort}
-        isScoreOverlayVisible={isScoreOverlayVisible}
-        onToggleScoreOverlay={() => setIsScoreOverlayVisible((value) => !value)}
-        filterOptions={filterOptions}
-        sortOptions={sortOptions}
-        scoreRange={scoreFilterRange}
-        onScoreRangeChange={handleScoreFilterRangeChange}
       />
       {shouldShowUserPicker ? (
         <div className="user-picker-overlay">

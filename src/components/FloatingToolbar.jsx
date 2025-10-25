@@ -1,209 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './FloatingToolbar.css';
 
-const USER_AVATAR_LETTERS = {
-  Marcus: 'MB',
-  Philip: 'PO',
-  Adam: 'AM',
-};
-
-function FloatingToolbar({
-  mode,
-  onNavigateToOverview,
-  onNavigateToPoster,
-  currentUser,
-  onUserChange,
-  filterOption,
-  onFilterChange,
-  sortOption,
-  onSortChange,
-  isScoreOverlayVisible,
-  onToggleScoreOverlay,
-  filterOptions = [],
-  sortOptions = [],
-  scoreRange = [0, 10],
-  onScoreRangeChange,
-  userOptions = [],
-}) {
-  const toolbarRef = useRef(null);
-  const [openMenu, setOpenMenu] = useState(null);
-
+function FloatingToolbar({ mode, onNavigateToOverview, onNavigateToPoster }) {
   const isPosterView = mode !== 'overview';
-  const toolbarLabel = useMemo(() => (isPosterView ? 'Filmvy' : 'Affischöversikt'), [isPosterView]);
-
-  const availableUsers = useMemo(() => {
-    if (!Array.isArray(userOptions)) {
-      return [];
-    }
-    return userOptions.filter(Boolean);
-  }, [userOptions]);
-
-  const hasUserOptions = availableUsers.length > 0;
-
-  const avatarLetters = useMemo(() => {
-    if (!currentUser) {
-      return '?';
-    }
-
-    const trimmed = currentUser.trim();
-    return USER_AVATAR_LETTERS[trimmed] ?? trimmed.slice(0, 2).toUpperCase();
-  }, [currentUser]);
-
-  const sanitizedScoreRange = useMemo(() => {
-    const [rawMin = 0, rawMax = 10] = Array.isArray(scoreRange) ? scoreRange : [0, 10];
-    const min = Number.isFinite(rawMin) ? rawMin : Number.parseFloat(rawMin) || 0;
-    const max = Number.isFinite(rawMax) ? rawMax : Number.parseFloat(rawMax) || 10;
-    const clampedMin = Math.min(Math.max(0, min), 10);
-    const clampedMax = Math.min(10, Math.max(clampedMin, max));
-    return [clampedMin, clampedMax];
-  }, [scoreRange]);
-
-  const [scoreRangeMin, scoreRangeMax] = sanitizedScoreRange;
-
-  useEffect(() => {
-    setOpenMenu(null);
-  }, [mode]);
-
-  useEffect(() => {
-    if (openMenu === 'filter' && filterOption !== 'scoreRange') {
-      setOpenMenu(null);
-    }
-  }, [filterOption, openMenu]);
-
-  useEffect(() => {
-    if (!openMenu) {
-      return undefined;
-    }
-
-    const handlePointerDown = (event) => {
-      if (!toolbarRef.current?.contains(event.target)) {
-        setOpenMenu(null);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setOpenMenu(null);
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [openMenu]);
-
-  const handleToggleMenu = (menu) => {
-    setOpenMenu((current) => (current === menu ? null : menu));
-  };
-
-  const handleFilterChange = (value) => {
-    if (typeof onFilterChange === 'function') {
-      onFilterChange(value);
-    }
-    if (value !== 'scoreRange') {
-      setOpenMenu(null);
-    }
-  };
-
-  const handleSortChange = (value) => {
-    if (typeof onSortChange === 'function') {
-      onSortChange(value);
-    }
-    setOpenMenu(null);
-  };
-
-  const handleUserSelect = (user) => {
-    if (typeof onUserChange === 'function') {
-      onUserChange(user);
-    }
-    setOpenMenu(null);
-  };
-
-  const updateScoreRange = useCallback(
-    (type, rawValue) => {
-      if (typeof onScoreRangeChange !== 'function') {
-        return;
-      }
-
-      const numeric =
-        typeof rawValue === 'number' && Number.isFinite(rawValue)
-          ? rawValue
-          : Number.parseFloat(rawValue);
-
-      if (!Number.isFinite(numeric)) {
-        if (type === 'min') {
-          onScoreRangeChange([0, scoreRangeMax]);
-        } else {
-          onScoreRangeChange([scoreRangeMin, 10]);
-        }
-        return;
-      }
-
-      if (type === 'min') {
-        const nextMin = Math.min(Math.max(0, numeric), 10);
-        const nextMax = Math.max(nextMin, scoreRangeMax);
-        onScoreRangeChange([nextMin, nextMax]);
-      } else {
-        const nextMax = Math.min(10, Math.max(0, numeric));
-        const nextMin = Math.min(scoreRangeMin, nextMax);
-        const safeMin = Math.min(nextMin, nextMax);
-        const safeMax = Math.max(nextMax, safeMin);
-        onScoreRangeChange([safeMin, safeMax]);
-      }
-    },
-    [onScoreRangeChange, scoreRangeMax, scoreRangeMin],
-  );
-
-  const handleScoreRangeSliderChange = (type) => (event) => {
-    updateScoreRange(type, event.target.value);
-  };
-
-  const handleScoreRangeNumberChange = (type) => (event) => {
-    updateScoreRange(type, event.target.value);
-  };
 
   return (
-    <nav className="floating-toolbar" aria-label={`Verktygsrad för ${toolbarLabel}`} ref={toolbarRef}>
+    <nav className="floating-toolbar" aria-label="Verktygsrad">
       <div className="floating-toolbar__surface">
-        <div className="floating-toolbar__item-wrapper">
-          <button
-            type="button"
-            className="floating-toolbar__button floating-toolbar__button--avatar"
-            onClick={hasUserOptions ? () => handleToggleMenu('profile') : undefined}
-            aria-haspopup={hasUserOptions ? 'true' : undefined}
-            aria-expanded={hasUserOptions ? openMenu === 'profile' : undefined}
-            aria-label={currentUser ? `Aktiv profil: ${currentUser}` : 'Välj profil'}
-            disabled={!hasUserOptions}
-          >
-            <span className="floating-toolbar__avatar-circle" aria-hidden="true">
-              {avatarLetters}
-            </span>
-            <span className="floating-toolbar__label">Profil</span>
-          </button>
-          {openMenu === 'profile' && hasUserOptions ? (
-            <div className="floating-toolbar__menu floating-toolbar__menu--profile" role="menu">
-              {availableUsers.map((user) => (
-                <button
-                  key={user}
-                  type="button"
-                  className={`floating-toolbar__menu-item ${
-                    currentUser === user ? 'floating-toolbar__menu-item--active' : ''
-                  }`}
-                  role="menuitemradio"
-                  aria-checked={currentUser === user}
-                  onClick={() => handleUserSelect(user)}
-                >
-                  {user}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
         <div className="floating-toolbar__items">
           {isPosterView ? (
             <div className="floating-toolbar__item-wrapper">
@@ -220,150 +22,45 @@ function FloatingToolbar({
           ) : (
             <>
               <div className="floating-toolbar__item-wrapper">
-                <button
-                  type="button"
+                <a
                   className="floating-toolbar__button"
-                  onClick={() => handleToggleMenu('filter')}
-                  aria-haspopup="true"
-                  aria-expanded={openMenu === 'filter'}
-                  aria-label="Filter"
+                  href="#profile-settings"
+                  aria-label="Välj profil"
+                >
+                  <i className="fa-solid fa-user" aria-hidden="true" />
+                  <span className="floating-toolbar__label">Profil</span>
+                </a>
+              </div>
+              <div className="floating-toolbar__item-wrapper">
+                <a
+                  className="floating-toolbar__button"
+                  href="#overview-filter"
+                  aria-label="Filterinställningar"
                 >
                   <i className="fa-solid fa-filter" aria-hidden="true" />
                   <span className="floating-toolbar__label">Filter</span>
-                </button>
-                {openMenu === 'filter' ? (
-                  <div className="floating-toolbar__menu" role="menu">
-                    {filterOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={`floating-toolbar__menu-item ${
-                          filterOption === option.value ? 'floating-toolbar__menu-item--active' : ''
-                        }`}
-                        role="menuitemradio"
-                        aria-checked={filterOption === option.value}
-                        onClick={() => handleFilterChange(option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                    {filterOption === 'scoreRange' ? (
-                      <div
-                        className="floating-toolbar__score-range"
-                        role="group"
-                        aria-label="Begränsa betygsspann"
-                      >
-                        <div className="floating-toolbar__score-range-header">
-                          <span className="floating-toolbar__score-range-title">Score span</span>
-                          <span className="floating-toolbar__score-range-value">
-                            {scoreRangeMin.toFixed(1)} – {scoreRangeMax.toFixed(1)}
-                          </span>
-                        </div>
-                        <div className="floating-toolbar__score-range-sliders">
-                          <label className="floating-toolbar__score-range-field">
-                            <span>Min</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="10"
-                              step="0.5"
-                              value={scoreRangeMin}
-                              onChange={handleScoreRangeSliderChange('min')}
-                              aria-label="Minsta score"
-                            />
-                          </label>
-                          <label className="floating-toolbar__score-range-field">
-                            <span>Max</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="10"
-                              step="0.5"
-                              value={scoreRangeMax}
-                              onChange={handleScoreRangeSliderChange('max')}
-                              aria-label="Högsta score"
-                            />
-                          </label>
-                        </div>
-                        <div className="floating-toolbar__score-range-inputs">
-                          <label className="floating-toolbar__score-range-input">
-                            <span>Min</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max="10"
-                              step="0.1"
-                              value={scoreRangeMin}
-                              onChange={handleScoreRangeNumberChange('min')}
-                              aria-label="Minsta score som visas"
-                            />
-                          </label>
-                          <label className="floating-toolbar__score-range-input">
-                            <span>Max</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max="10"
-                              step="0.1"
-                              value={scoreRangeMax}
-                              onChange={handleScoreRangeNumberChange('max')}
-                              aria-label="Högsta score som visas"
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                </a>
               </div>
-
               <div className="floating-toolbar__item-wrapper">
-                <button
-                  type="button"
+                <a
                   className="floating-toolbar__button"
-                  onClick={() => handleToggleMenu('sort')}
-                  aria-haspopup="true"
-                  aria-expanded={openMenu === 'sort'}
-                  aria-label="Sortera"
+                  href="#overview-sort"
+                  aria-label="Sorteringsalternativ"
                 >
                   <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
                   <span className="floating-toolbar__label">Sortera</span>
-                </button>
-                {openMenu === 'sort' ? (
-                  <div className="floating-toolbar__menu" role="menu">
-                    {sortOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={`floating-toolbar__menu-item ${
-                          sortOption === option.value ? 'floating-toolbar__menu-item--active' : ''
-                        }`}
-                        role="menuitemradio"
-                        aria-checked={sortOption === option.value}
-                        onClick={() => handleSortChange(option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                </a>
               </div>
-
               <div className="floating-toolbar__item-wrapper">
-                <button
-                  type="button"
-                  className={`floating-toolbar__button ${
-                    isScoreOverlayVisible ? 'floating-toolbar__button--active' : ''
-                  }`}
-                  onClick={onToggleScoreOverlay}
-                  aria-pressed={isScoreOverlayVisible}
-                  aria-label={isScoreOverlayVisible ? 'Dölj betyg' : 'Visa betyg'}
+                <a
+                  className="floating-toolbar__button"
+                  href="#score-visibility"
+                  aria-label="Inställningar för betygsvisning"
                 >
                   <i className="fa-solid fa-layer-group" aria-hidden="true" />
                   <span className="floating-toolbar__label">Betyg</span>
-                </button>
+                </a>
               </div>
-
               <div className="floating-toolbar__item-wrapper">
                 <button
                   type="button"
