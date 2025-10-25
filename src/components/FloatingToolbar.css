@@ -120,7 +120,8 @@
   gap: 8px;
   padding: 10px 14px;
   cursor: pointer;
-  transition: background 160ms ease, transform 160ms ease;
+  transition: background 160ms ease, transform 160ms ease, width 220ms ease,
+    padding 220ms ease;
   text-transform: uppercase;
   flex: 0 0 auto;
 }
@@ -142,6 +143,7 @@
 .floating-toolbar__action span {
   font-size: 0.68rem;
   letter-spacing: 0.12em;
+  white-space: nowrap;
 }
 
 .floating-toolbar__icon-button:focus-visible,
@@ -344,10 +346,6 @@
     padding: 12px 14px;
   }
 
-  .floating-toolbar__action {
-    padding: 10px 12px;
-  }
-
   .floating-toolbar__menu {
     min-width: 160px;
   }
@@ -378,13 +376,35 @@
   }
 
   .floating-toolbar__action {
-    min-width: 140px;
-    justify-content: flex-start;
+    min-width: 0;
+    width: 44px;
+    justify-content: center;
+    padding: 10px;
   }
 
   .floating-toolbar__action span {
-    display: inline;
+    opacity: 0;
+    max-width: 0;
+    transform: translateY(4px);
+    margin-left: 0;
+    transition: opacity 180ms ease, max-width 220ms ease, margin 220ms ease,
+      transform 180ms ease;
     font-size: 0.7rem;
+    pointer-events: none;
+  }
+
+  .floating-toolbar__action--expanded {
+    width: auto;
+    justify-content: flex-start;
+    padding: 10px 16px;
+  }
+
+  .floating-toolbar__action--expanded span {
+    opacity: 1;
+    max-width: 160px;
+    transform: translateY(0);
+    margin-left: 8px;
+    pointer-events: auto;
   }
 }
 
