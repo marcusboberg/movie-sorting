@@ -1052,25 +1052,12 @@ function App() {
               <i className="fa-solid fa-user" aria-hidden="true" />
             )}
           </button>
-          <div className="app-header__titles">
-            <h1 className="app-title">Filmkväll</h1>
-            <p className="app-subtitle">Utforska, betygsätt och jämför filmer med vänner.</p>
-          </div>
-          <button
-            type="button"
-            className="app-settings-button"
-            onClick={handleOpenSettings}
-            aria-label="Öppna inställningar"
-          >
-            <i className="fa-solid fa-gear" aria-hidden="true" />
-          </button>
-        </header>
-        <div className="view-toggle" role="tablist" aria-label="Visa läge">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!isOverviewOpen}
-            className={`view-toggle__button ${!isOverviewOpen ? 'view-toggle__button--active' : ''}`}
+          <nav className="app-header__navigation view-toggle" role="tablist" aria-label="Visa läge">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isOverviewOpen}
+              className={`view-toggle__button ${!isOverviewOpen ? 'view-toggle__button--active' : ''}`}
             onClick={handleCloseOverview}
           >
             Affischer
@@ -1080,11 +1067,20 @@ function App() {
             role="tab"
             aria-selected={isOverviewOpen}
             className={`view-toggle__button ${isOverviewOpen ? 'view-toggle__button--active' : ''}`}
-            onClick={handleOpenOverview}
+              onClick={handleOpenOverview}
+            >
+              Översikt
+            </button>
+          </nav>
+          <button
+            type="button"
+            className="app-settings-button"
+            onClick={handleOpenSettings}
+            aria-label="Öppna inställningar"
           >
-            Översikt
+            <i className="fa-solid fa-gear" aria-hidden="true" />
           </button>
-        </div>
+        </header>
         <main
           className={`app-main ${isOverviewOpen ? 'app-main--overview' : 'app-main--focused'}`}
           ref={isOverviewOpen ? undefined : swipeAreaRef}
