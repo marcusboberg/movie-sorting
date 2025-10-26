@@ -277,17 +277,24 @@ export async function loadUserRatings(username: string): Promise<Record<string, 
     return {};
   }
 
-  const snapshot = await getDocs(collection(db, 'ratings', normalisedUsername, 'movies'));
-  const result: Record<string, number> = {};
-  snapshot.forEach((docSnapshot) => {
-    const data = docSnapshot.data();
-    if (!data) return;
-    const numeric = clampRating(typeof data.rating === 'number' ? data.rating : Number.parseFloat(String(data.rating)));
-    if (numeric > 0.0001) {
-      result[docSnapshot.id] = numeric;
+  try {
+    const snapshot = await getDocs(collection(db, 'ratings', normalisedUsername, 'movies'));
+    const result: Record<string, number> = {};
+    snapshot.forEach((docSnapshot) => {
+      const data = docSnapshot.data();
+      if (!data) return;
+      const numeric = clampRating(typeof data.rating === 'number' ? data.rating : Number.parseFloat(String(data.rating)));
+      if (numeric > 0.0001) {
+        result[docSnapshot.id] = numeric;
+      }
+    });
+    return result;
+  } catch (error) {
+    if (typeof console !== 'undefined') {
+      console.error('Failed to load user ratings from Firestore', error);
     }
-  });
-  return result;
+    return {};
+  }
 }
 
 export function subscribeUserRatings(
@@ -302,19 +309,35 @@ export function subscribeUserRatings(
   }
 
   const reference = collection(db, 'ratings', normalisedUsername, 'movies');
-  return onSnapshot(reference, (snapshot) => {
-    const payload: Record<string, number> = {};
-    snapshot.forEach((docSnapshot) => {
-      const data = docSnapshot.data();
-      const numeric = clampRating(
-        data && typeof data.rating === 'number' ? data.rating : Number.parseFloat(String(data?.rating ?? '0'))
-      );
-      if (numeric > 0.0001) {
-        payload[docSnapshot.id] = numeric;
-      }
-    });
-    callback(payload);
-  });
+  const handleError = (error: unknown) => {
+    if (typeof console !== 'undefined') {
+      console.error('Failed to subscribe to Firestore ratings updates', error);
+    }
+    callback({});
+  };
+
+  try {
+    return onSnapshot(
+      reference,
+      (snapshot) => {
+        const payload: Record<string, number> = {};
+        snapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data();
+          const numeric = clampRating(
+            data && typeof data.rating === 'number' ? data.rating : Number.parseFloat(String(data?.rating ?? '0'))
+          );
+          if (numeric > 0.0001) {
+            payload[docSnapshot.id] = numeric;
+          }
+        });
+        callback(payload);
+      },
+      handleError
+    );
+  } catch (error) {
+    handleError(error);
+    return () => {};
+  }
 }
 
 export async function loadAllRatings(): Promise<Record<Username, Record<string, number>>> {
