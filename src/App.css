@@ -508,18 +508,18 @@ p {
   mask-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.55) 8%,
+    rgba(0, 0, 0, 0.52) 8%,
     rgba(0, 0, 0, 1) 26%,
     rgba(0, 0, 0, 1) calc(100% - var(--overview-mask-fade-buffer)),
-    rgba(0, 0, 0, 0) 100%
+    rgba(0, 0, 0, 1) 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.55) 8%,
+    rgba(0, 0, 0, 0.52) 8%,
     rgba(0, 0, 0, 1) 26%,
     rgba(0, 0, 0, 1) calc(100% - var(--overview-mask-fade-buffer)),
-    rgba(0, 0, 0, 0) 100%
+    rgba(0, 0, 0, 1) 100%
   );
 }
 
