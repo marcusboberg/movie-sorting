@@ -277,23 +277,72 @@ function App() {
       return undefined;
     }
 
+    const POSTER_PRELOAD_LIMIT = 24;
+    const uniquePosterUrls = movies
+      .map((movie) => movie.posterUrl)
+      .filter((posterUrl) => typeof posterUrl === 'string' && posterUrl.length > 0);
+    const queue = uniquePosterUrls.filter((posterUrl) => !preloadedPostersRef.current.has(posterUrl));
+
+    if (!queue.length) {
+      return undefined;
+    }
+
     const cleanupImages = [];
-    movies.forEach((movie) => {
-      const posterUrl = movie.posterUrl;
-      if (!posterUrl || preloadedPostersRef.current.has(posterUrl)) {
+    let isCancelled = false;
+    let index = 0;
+    let idleHandle = null;
+    let timeoutHandle = null;
+
+    const scheduleNext = () => {
+      if (isCancelled || index >= queue.length || index >= POSTER_PRELOAD_LIMIT) {
         return;
       }
 
+      const scheduleWithIdle =
+        typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function';
+
+      if (scheduleWithIdle) {
+        idleHandle = window.requestIdleCallback(() => {
+          idleHandle = null;
+          loadNext();
+        });
+      } else {
+        timeoutHandle = window.setTimeout(() => {
+          timeoutHandle = null;
+          loadNext();
+        }, 120);
+      }
+    };
+
+    const loadNext = () => {
+      if (isCancelled || index >= queue.length || index >= POSTER_PRELOAD_LIMIT) {
+        return;
+      }
+
+      const posterUrl = queue[index];
+      index += 1;
       preloadedPostersRef.current.add(posterUrl);
+
       const image = new Image();
       image.decoding = 'async';
       image.loading = 'eager';
       image.src = posterUrl;
       image.decode?.().catch(() => {});
       cleanupImages.push(image);
-    });
+
+      scheduleNext();
+    };
+
+    scheduleNext();
 
     return () => {
+      isCancelled = true;
+      if (idleHandle != null && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle);
+      }
+      if (timeoutHandle != null) {
+        window.clearTimeout(timeoutHandle);
+      }
       cleanupImages.forEach((image) => {
         image.src = '';
       });
