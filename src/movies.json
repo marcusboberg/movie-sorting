@@ -808,5 +808,85 @@
     "description": "When one of her students is suspected of theft, teacher Carla Nowak decides to get to the bottom of the matter. Caught between her ideals and the school system, the consequences of her actions threaten to break her.",
     "image": "/posters/tt26612950.jpg",
     "imdbId": "tt26612950"
+  },
+  {
+    "order": 91,
+    "title": "Sharper",
+    "year": "2023",
+    "runtime": 116,
+    "image": "/posters/tt12573454.jpg",
+    "imdbId": "tt12573454"
+  },
+  {
+    "order": 92,
+    "title": "The Banshees of Inisherin",
+    "year": "2022",
+    "runtime": 114,
+    "image": "/posters/tt11813216.jpg",
+    "imdbId": "tt11813216"
+  },
+  {
+    "order": 93,
+    "title": "Searching for Sugar Man",
+    "year": "2012",
+    "runtime": 86,
+    "image": "/posters/tt2125608.jpg",
+    "imdbId": "tt2125608"
+  },
+  {
+    "order": 94,
+    "title": "Perfume: The Story of a Murderer",
+    "year": "2006",
+    "runtime": 147,
+    "image": "/posters/tt0396171.jpg",
+    "imdbId": "tt0396171"
+  },
+  {
+    "order": 95,
+    "title": "In the Name of the Father",
+    "year": "1993",
+    "runtime": 133,
+    "image": "/posters/tt0107207.jpg",
+    "imdbId": "tt0107207"
+  },
+  {
+    "order": 96,
+    "title": "Wake Up Dead Man",
+    "year": "2025",
+    "runtime": 144,
+    "image": "/posters/tt14364480.jpg",
+    "imdbId": "tt14364480"
+  },
+  {
+    "order": 97,
+    "title": "One Battle After Another",
+    "year": "2025",
+    "runtime": 161,
+    "image": "/posters/tt30144839.jpg",
+    "imdbId": "tt30144839"
+  },
+  {
+    "order": 98,
+    "title": "Trainspotting",
+    "year": "1996",
+    "runtime": 93,
+    "image": "/posters/tt0117951.jpg",
+    "imdbId": "tt0117951"
+  },
+  {
+    "order": 99,
+    "title": "We Need to Talk About Kevin",
+    "year": "2011",
+    "runtime": 112,
+    "image": "/posters/tt1242460.jpg",
+    "imdbId": "tt1242460"
+  },
+  {
+    "order": 100,
+    "title": "Manchester by the Sea",
+    "year": "2016",
+    "runtime": 137,
+    "image": "/posters/tt4034228.jpg",
+    "imdbId": "tt4034228"
   }
 ]
