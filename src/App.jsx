@@ -173,6 +173,25 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof document === 'undefined' || !document.body) {
+      return undefined;
+    }
+
+    if (isOverviewOpen) {
+      document.body.classList.remove('app-lock-scroll');
+      document.documentElement.classList.remove('app-lock-scroll');
+    } else {
+      document.body.classList.add('app-lock-scroll');
+      document.documentElement.classList.add('app-lock-scroll');
+    }
+
+    return () => {
+      document.body.classList.remove('app-lock-scroll');
+      document.documentElement.classList.remove('app-lock-scroll');
+    };
+  }, [isOverviewOpen]);
+
+  useEffect(() => {
     if (typeof document === 'undefined') {
       return undefined;
     }
