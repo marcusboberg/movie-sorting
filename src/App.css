@@ -198,6 +198,10 @@ p {
   touch-action: auto;
 }
 
+.app-main--details {
+  touch-action: auto;
+}
+
 .movie-stage {
   position: relative;
   width: min(300px, 100%);
@@ -879,6 +883,10 @@ p {
   justify-content: center;
 }
 
+.movie-face--back {
+  touch-action: pan-y;
+}
+
 .movie-face {
   position: absolute;
   inset: 0;
@@ -1097,6 +1105,37 @@ p {
   font-size: 0.95rem;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.85);
+}
+
+.movie-overview--collapsed {
+  max-height: calc(1.5em * 10);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 10;
+  -webkit-box-orient: vertical;
+}
+
+.movie-overview-toggle {
+  align-self: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.movie-overview-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.movie-overview-toggle:active {
+  transform: scale(0.98);
 }
 
 .rating-area {

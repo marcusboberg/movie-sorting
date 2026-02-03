@@ -120,6 +120,7 @@ function App() {
     }, {})
   );
   const [activeRatingMovieId, setActiveRatingMovieId] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [transitionDirection, setTransitionDirection] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const [overviewMode, setOverviewMode] = useState('grid');
@@ -147,6 +148,10 @@ function App() {
 
     previousOverviewStateRef.current = isOverviewOpen;
   }, [isOverviewOpen]);
+
+  useEffect(() => {
+    setIsDetailsOpen(false);
+  }, [activeMovie?.id, isOverviewOpen]);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -773,7 +778,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (isOverviewOpen) {
+    if (isOverviewOpen || isDetailsOpen) {
       return undefined;
     }
 
@@ -830,7 +835,7 @@ function App() {
       pointerId = event.pointerId;
       startX = event.clientX;
       startY = event.clientY;
-      interactionMode = event.target.closest('.movie-poster-shell') ? 'pending' : 'navigate';
+      interactionMode = event.target.closest('.movie-poster-shell--front') ? 'pending' : 'navigate';
       hasRatingChanged = false;
       initialRating = ratingsRef.current[activeMovieId] ?? 0;
 
@@ -954,6 +959,7 @@ function App() {
     handleRatingChange,
     handleRatingCommit,
     handleRatingInteractionChange,
+    isDetailsOpen,
     isOverviewOpen,
     navigateBy,
   ]);
@@ -1150,7 +1156,9 @@ function App() {
           </button>
         </header>
         <main
-          className={`app-main ${isOverviewOpen ? 'app-main--overview' : 'app-main--focused'}`}
+          className={`app-main ${
+            isOverviewOpen ? 'app-main--overview' : isDetailsOpen ? 'app-main--details' : 'app-main--focused'
+          }`}
           ref={isOverviewOpen ? undefined : swipeAreaRef}
         >
           {isOverviewOpen ? (
@@ -1250,6 +1258,7 @@ function App() {
                 rating={ratings[activeMovie.id] ?? 0}
                 isRatingActive={activeRatingMovieId === activeMovie.id}
                 resetTrigger={posterSnapToken}
+                onFlipChange={setIsDetailsOpen}
               />
             </div>
           ) : (
