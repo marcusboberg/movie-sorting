@@ -39,8 +39,36 @@ function normalizeMovie(movie, index) {
       const overview = typeof movie?.overview === 'string' ? movie.overview.trim() : '';
       return overview || null;
     })(),
+    genres: Array.isArray(movie?.genres)
+      ? movie.genres.map((genre) => (typeof genre === 'string' ? genre.trim() : '')).filter(Boolean)
+      : [],
+    cast: Array.isArray(movie?.cast)
+      ? movie.cast.map((actor) => (typeof actor === 'string' ? actor.trim() : '')).filter(Boolean)
+      : [],
   };
 }
+
+const EPSILON = 0.0001;
+const clampScore = (value) => Math.min(10, Math.max(0, Math.round(value * 10) / 10));
+
+const calculateAverage = (values) => {
+  if (!values.length) return 0;
+  return clampScore(values.reduce((sum, value) => sum + value, 0) / values.length);
+};
+
+const calculateSpread = (values) => {
+  if (!values.length) return 0;
+  return clampScore(Math.max(...values) - Math.min(...values));
+};
+
+const calculateStdDev = (values) => {
+  if (!values.length) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+};
+
+const formatPairScore = (value) => (Number.isFinite(value) ? value.toFixed(2) : '0.00');
 
 const filterOptions = [
   { value: 'all', label: 'Alla filmer' },
@@ -124,6 +152,7 @@ function App() {
   const [transitionDirection, setTransitionDirection] = useState(null);
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
   const [overviewMode, setOverviewMode] = useState('grid');
+  const [wrappedIndex, setWrappedIndex] = useState(0);
   const [overviewFilter, setOverviewFilter] = useState('all');
   const [scoreFilterRange, setScoreFilterRange] = useState([0, 10]);
   const [overviewSort, setOverviewSort] = useState('viewingOrder');
@@ -1070,15 +1099,227 @@ function App() {
         return normalizeRating(userRatings[movieKey] ?? 0);
       });
 
-      const ratedValues = values.filter((value) => value > 0.0001);
-      const average =
-        ratedValues.length > 0
-          ? Math.round((ratedValues.reduce((sum, value) => sum + value, 0) / ratedValues.length) * 10) / 10
-          : 0;
+      const ratedValues = values.filter((value) => value > EPSILON);
+      const average = calculateAverage(ratedValues);
 
-      return { movie, values, average };
+      return { movie, values, average, ratedValues };
     });
   }, [allRatings, movies, normalizeRating]);
+
+  const stats = useMemo(() => {
+    const rankedByAverage = compareRows
+      .filter((row) => row.ratedValues.length >= 2)
+      .map((row) => ({
+        movie: row.movie,
+        average: row.average,
+        votes: row.ratedValues.length,
+        spread: calculateSpread(row.ratedValues),
+        deviation: calculateStdDev(row.ratedValues),
+      }))
+      .sort((first, second) => {
+        if (Math.abs(second.average - first.average) > EPSILON) return second.average - first.average;
+        if (second.votes !== first.votes) return second.votes - first.votes;
+        return first.deviation - second.deviation;
+      });
+
+    const unanimousRows = compareRows
+      .filter((row) => row.ratedValues.length === USER_OPTIONS.length)
+      .map((row) => ({
+        movie: row.movie,
+        spread: calculateSpread(row.ratedValues),
+        values: row.values,
+      }));
+
+    const mostDivisive = [...unanimousRows].sort((a, b) => b.spread - a.spread).slice(0, 5);
+    const mostAgreed = [...unanimousRows].sort((a, b) => a.spread - b.spread).slice(0, 5);
+
+    const userAverages = USER_OPTIONS.map((user) => {
+      const values = Object.values(allRatings[user] ?? {})
+        .map((value) => normalizeRating(value))
+        .filter((value) => value > EPSILON);
+      return {
+        user,
+        average: calculateAverage(values),
+        count: values.length,
+      };
+    })
+      .filter((entry) => entry.count > 0)
+      .sort((a, b) => b.average - a.average);
+
+    const pairSimilarities = [];
+    for (let i = 0; i < USER_OPTIONS.length; i += 1) {
+      for (let j = i + 1; j < USER_OPTIONS.length; j += 1) {
+        const firstUser = USER_OPTIONS[i];
+        const secondUser = USER_OPTIONS[j];
+        const diffs = compareRows
+          .map((row) => {
+            const first = row.values[i];
+            const second = row.values[j];
+            if (first <= EPSILON || second <= EPSILON) {
+              return null;
+            }
+            return Math.abs(first - second);
+          })
+          .filter((value) => value != null);
+
+        const averageDiff = diffs.length ? diffs.reduce((sum, value) => sum + value, 0) / diffs.length : null;
+        const matchScore = averageDiff == null ? null : Math.max(0, 1 - averageDiff / 10);
+
+        pairSimilarities.push({
+          pair: `${firstUser} × ${secondUser}`,
+          overlap: diffs.length,
+          score: matchScore,
+        });
+      }
+    }
+
+    const hotTakes = compareRows
+      .flatMap((row) => {
+        if (row.ratedValues.length < 2) {
+          return [];
+        }
+
+        return USER_OPTIONS.map((user, index) => {
+          const userValue = row.values[index];
+          if (userValue <= EPSILON) {
+            return null;
+          }
+          const others = row.values.filter((_, currentIndex) => currentIndex !== index).filter((value) => value > EPSILON);
+          if (!others.length) {
+            return null;
+          }
+          const othersAverage = calculateAverage(others);
+          const delta = clampScore(Math.abs(userValue - othersAverage));
+          if (delta < 1.5) {
+            return null;
+          }
+          return {
+            movie: row.movie,
+            user,
+            userValue,
+            othersAverage,
+            delta,
+          };
+        }).filter(Boolean);
+      })
+      .sort((a, b) => b.delta - a.delta)
+      .slice(0, 8);
+
+    const byGenre = new Map();
+    const byActor = new Map();
+
+    compareRows.forEach((row) => {
+      USER_OPTIONS.forEach((user, index) => {
+        const value = row.values[index];
+        if (value <= EPSILON) {
+          return;
+        }
+
+        row.movie.genres.forEach((genre) => {
+          const key = `${user}__${genre}`;
+          const bucket = byGenre.get(key) ?? { user, label: genre, values: [] };
+          bucket.values.push(value);
+          byGenre.set(key, bucket);
+        });
+
+        row.movie.cast.forEach((actor) => {
+          const key = `${user}__${actor}`;
+          const bucket = byActor.get(key) ?? { user, label: actor, values: [] };
+          bucket.values.push(value);
+          byActor.set(key, bucket);
+        });
+      });
+    });
+
+    const topGenreByUser = USER_OPTIONS.map((user) => {
+      const candidates = [...byGenre.values()]
+        .filter((entry) => entry.user === user && entry.values.length >= 2)
+        .map((entry) => ({ ...entry, average: calculateAverage(entry.values) }))
+        .sort((a, b) => b.average - a.average);
+      return candidates[0] ?? null;
+    }).filter(Boolean);
+
+    const topActorByUser = USER_OPTIONS.map((user) => {
+      const candidates = [...byActor.values()]
+        .filter((entry) => entry.user === user && entry.values.length >= 2)
+        .map((entry) => ({ ...entry, average: calculateAverage(entry.values) }))
+        .sort((a, b) => b.average - a.average);
+      return candidates[0] ?? null;
+    }).filter(Boolean);
+
+    return {
+      topThree: rankedByAverage.slice(0, 3),
+      mostDivisive,
+      mostAgreed,
+      userAverages,
+      pairSimilarities,
+      hotTakes,
+      topGenreByUser,
+      topActorByUser,
+      hasMetadata: movies.some((movie) => movie.genres.length > 0 || movie.cast.length > 0),
+    };
+  }, [allRatings, compareRows, movies, normalizeRating]);
+
+
+  const wrappedSlides = useMemo(() => {
+    const topMovie = stats.topThree[0];
+    const mostSplit = stats.mostDivisive[0];
+    const mostMatch = [...stats.pairSimilarities]
+      .filter((entry) => entry.score != null)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+    const topTake = stats.hotTakes[0];
+    const userSummary = stats.userAverages.find((entry) => entry.user === username) ?? stats.userAverages[0] ?? null;
+
+    return [
+      {
+        key: 'intro',
+        kicker: 'Movie Wrapped',
+        title: username ? `${username}s filmår` : 'Ert filmår',
+        subtitle: 'En snabb recap av er smak och era mest minnesvärda betyg.',
+      },
+      {
+        key: 'top',
+        kicker: 'Topplistan',
+        title: topMovie ? `#1: ${topMovie.movie.title}` : 'Inga topprankade filmer ännu',
+        subtitle: topMovie ? `Snitt ${topMovie.average.toFixed(1)} från ${topMovie.votes} röster.` : 'Sätt fler betyg för att få en topplista.',
+      },
+      {
+        key: 'split',
+        kicker: 'Drama alert',
+        title: mostSplit ? `${mostSplit.movie.title} delade er mest` : 'Ingen stor splittring än',
+        subtitle: mostSplit ? `Skillnad ${mostSplit.spread.toFixed(1)} poäng mellan högsta och lägsta betyg.` : 'När alla tre har röstat visas mest splittrade film här.',
+      },
+      {
+        key: 'taste',
+        kicker: 'Smakmatch',
+        title: mostMatch ? `${mostMatch.pair} är mest synkade` : 'Inte tillräckligt med överlapp än',
+        subtitle: mostMatch ? `Matchscore ${formatPairScore(mostMatch.score ?? 0)}.` : 'Behövs fler filmer med dubbla betyg.',
+      },
+      {
+        key: 'take',
+        kicker: 'Hot take',
+        title: topTake ? `${topTake.user} sticker ut på ${topTake.movie.title}` : 'Inga hot takes än',
+        subtitle: topTake ? `Skillnad Δ ${topTake.delta.toFixed(1)} mot övriga.` : 'När någon avviker stort dyker den upp här.',
+      },
+      {
+        key: 'profile',
+        kicker: 'Profil',
+        title: userSummary ? `${userSummary.user} snittar ${userSummary.average.toFixed(1)}` : 'Ingen profil ännu',
+        subtitle: userSummary ? `${userSummary.count} betyg satta. ${userSummary.average >= 7 ? 'Generös smak!' : 'Kritisk smak!'} ` : 'Sätt några betyg för att bygga din profil.',
+      },
+    ];
+  }, [stats, username]);
+
+  const wrappedSlideCount = wrappedSlides.length;
+  const safeWrappedIndex = Math.min(Math.max(0, wrappedIndex), Math.max(0, wrappedSlideCount - 1));
+  const activeWrappedSlide = wrappedSlides[safeWrappedIndex] ?? null;
+
+  useEffect(() => {
+    if (overviewMode !== 'wrapped') {
+      return;
+    }
+    setWrappedIndex((previous) => Math.min(previous, Math.max(0, wrappedSlideCount - 1)));
+  }, [overviewMode, wrappedSlideCount]);
 
   const shouldShowUserPicker = isUserPickerOpen || !username;
 
@@ -1195,7 +1436,7 @@ function App() {
                     );
                   })}
                 </div>
-              ) : (
+              ) : overviewMode === 'compare' ? (
                 <div className="compare-table-wrapper">
                   <div className="compare-list" role="list">
                     {compareRows.map(({ movie, values, average }) => (
@@ -1207,21 +1448,17 @@ function App() {
                           </div>
                           <div
                             className={`compare-card__average ${
-                              average > 0.0001 ? '' : 'compare-card__average--empty'
+                              average > EPSILON ? '' : 'compare-card__average--empty'
                             }`}
-                            aria-label={
-                              average > 0.0001
-                                ? `Snittbetyg ${average.toFixed(1)}`
-                                : 'Snittbetyg saknas'
-                            }
+                            aria-label={average > EPSILON ? `Snittbetyg ${average.toFixed(1)}` : 'Snittbetyg saknas'}
                           >
-                            {average > 0.0001 ? average.toFixed(1) : '—'}
+                            {average > EPSILON ? average.toFixed(1) : '—'}
                           </div>
                         </header>
                         <ul className="compare-card__ratings">
                           {values.map((value, index) => {
                             const user = USER_OPTIONS[index];
-                            const hasScore = value > 0.0001;
+                            const hasScore = value > EPSILON;
                             const ratingClassName = `compare-card__rating ${
                               username === user ? 'compare-card__rating--active' : ''
                             }`;
@@ -1242,6 +1479,145 @@ function App() {
                       </article>
                     ))}
                   </div>
+                </div>
+              ) : overviewMode === 'wrapped' ? (
+                <div className="wrapped-panel">
+                  {activeWrappedSlide ? (
+                    <article className="wrapped-card">
+                      <p className="wrapped-card__kicker">{activeWrappedSlide.kicker}</p>
+                      <h3 className="wrapped-card__title">{activeWrappedSlide.title}</h3>
+                      <p className="wrapped-card__subtitle">{activeWrappedSlide.subtitle}</p>
+                      <div className="wrapped-card__footer">
+                        <span className="wrapped-card__progress">
+                          {safeWrappedIndex + 1} / {wrappedSlideCount}
+                        </span>
+                        <div className="wrapped-card__controls">
+                          <button
+                            type="button"
+                            className="wrapped-card__button"
+                            onClick={() => setWrappedIndex((value) => Math.max(0, value - 1))}
+                            disabled={safeWrappedIndex === 0}
+                          >
+                            Föregående
+                          </button>
+                          <button
+                            type="button"
+                            className="wrapped-card__button wrapped-card__button--primary"
+                            onClick={() => setWrappedIndex((value) => Math.min(wrappedSlideCount - 1, value + 1))}
+                            disabled={safeWrappedIndex >= wrappedSlideCount - 1}
+                          >
+                            Nästa
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="stats-panel">
+                  <section className="stats-card">
+                    <h3>Topp 3 filmer</h3>
+                    <ul>
+                      {stats.topThree.map((entry) => (
+                        <li key={entry.movie.id}>
+                          <span>{entry.movie.title}</span>
+                          <strong>{entry.average.toFixed(1)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Mest splittrade filmer</h3>
+                    <ul>
+                      {stats.mostDivisive.map((entry) => (
+                        <li key={entry.movie.id}>
+                          <span>{entry.movie.title}</span>
+                          <strong>Spread {entry.spread.toFixed(1)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Mest eniga filmer</h3>
+                    <ul>
+                      {stats.mostAgreed.map((entry) => (
+                        <li key={entry.movie.id}>
+                          <span>{entry.movie.title}</span>
+                          <strong>Spread {entry.spread.toFixed(1)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Snällast till strängast</h3>
+                    <ul>
+                      {stats.userAverages.map((entry) => (
+                        <li key={entry.user}>
+                          <span>{entry.user}</span>
+                          <strong>{entry.average.toFixed(1)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Smakmatchning</h3>
+                    <ul>
+                      {stats.pairSimilarities.map((entry) => (
+                        <li key={entry.pair}>
+                          <span>{entry.pair}</span>
+                          <strong>{entry.score == null ? '—' : formatPairScore(entry.score)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Hot takes</h3>
+                    <ul>
+                      {stats.hotTakes.map((entry) => (
+                        <li key={`${entry.movie.id}-${entry.user}`}>
+                          <span>{entry.user}: {entry.movie.title}</span>
+                          <strong>Δ {entry.delta.toFixed(1)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Favoritgenre per person</h3>
+                    {stats.hasMetadata ? (
+                      <ul>
+                        {stats.topGenreByUser.map((entry) => (
+                          <li key={`${entry.user}-${entry.label}`}>
+                            <span>{entry.user}: {entry.label}</span>
+                            <strong>{entry.average.toFixed(1)}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>Lägg till genres i movies.json för denna analys.</p>
+                    )}
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Favoritskådespelare per person</h3>
+                    {stats.hasMetadata ? (
+                      <ul>
+                        {stats.topActorByUser.map((entry) => (
+                          <li key={`${entry.user}-${entry.label}`}>
+                            <span>{entry.user}: {entry.label}</span>
+                            <strong>{entry.average.toFixed(1)}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>Lägg till cast i movies.json för denna analys.</p>
+                    )}
+                  </section>
                 </div>
               )}
             </div>
@@ -1346,7 +1722,7 @@ function App() {
               <section className="settings-section">
                 <h3 className="settings-section__title">Visningsläge</h3>
                 <p className="settings-section__description">
-                  Växla mellan affischer och betygstabell i översikten.
+                  Växla mellan affischer, betygstabell och rolig statistik i översikten.
                 </p>
                 <div className="settings-section__options">
                   <button
@@ -1362,6 +1738,23 @@ function App() {
                     onClick={() => setOverviewMode('compare')}
                   >
                     Jämför
+                  </button>
+                  <button
+                    type="button"
+                    className={`settings-chip ${overviewMode === 'wrapped' ? 'settings-chip--active' : ''}`}
+                    onClick={() => {
+                      setOverviewMode('wrapped');
+                      setWrappedIndex(0);
+                    }}
+                  >
+                    Wrapped
+                  </button>
+                  <button
+                    type="button"
+                    className={`settings-chip ${overviewMode === 'stats' ? 'settings-chip--active' : ''}`}
+                    onClick={() => setOverviewMode('stats')}
+                  >
+                    Statistik
                   </button>
                 </div>
               </section>
