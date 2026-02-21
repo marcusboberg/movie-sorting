@@ -49,8 +49,15 @@ function normalizeMovie(movie, index) {
   };
 }
 
-const MOVIE_DETAILS_API_URL = import.meta.env.VITE_MOVIE_DETAILS_API_URL;
-const MOVIE_DETAILS_API_KEY = import.meta.env.VITE_MOVIE_DETAILS_API_KEY;
+const MOVIE_DETAILS_API_URL =
+  import.meta.env.VITE_MOVIE_DETAILS_API_URL ??
+  import.meta.env.VITE_MOVIE_API_URL ??
+  import.meta.env.VITE_API_URL ??
+  null;
+const MOVIE_DETAILS_API_KEY =
+  import.meta.env.VITE_MOVIE_DETAILS_API_KEY ?? import.meta.env.VITE_MOVIE_API_KEY ?? import.meta.env.VITE_API_KEY ?? null;
+const MOVIE_DETAILS_AUTH_TOKEN =
+  import.meta.env.VITE_MOVIE_DETAILS_AUTH_TOKEN ?? import.meta.env.VITE_MOVIE_API_AUTH_TOKEN ?? null;
 
 const toStringList = (value) => {
   if (Array.isArray(value)) {
@@ -104,20 +111,63 @@ const mergeMovieDetails = (baseMovie, apiMovie) => {
   };
 };
 
-const fetchMovieDetails = async (imdbId, signal) => {
-  if (!MOVIE_DETAILS_API_URL || !imdbId) {
+const buildMovieDetailsHeaders = () => {
+  const headers = {};
+  if (MOVIE_DETAILS_API_KEY) {
+    headers['x-api-key'] = MOVIE_DETAILS_API_KEY;
+  }
+  if (MOVIE_DETAILS_AUTH_TOKEN) {
+    headers.Authorization = `Bearer ${MOVIE_DETAILS_AUTH_TOKEN}`;
+  }
+  return Object.keys(headers).length ? headers : undefined;
+};
+
+const parseMovieDetailsPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
     return null;
   }
 
-  const separator = MOVIE_DETAILS_API_URL.includes('?') ? '&' : '?';
-  const url = `${MOVIE_DETAILS_API_URL}${separator}imdbId=${encodeURIComponent(imdbId)}`;
-  const headers = MOVIE_DETAILS_API_KEY ? { 'x-api-key': MOVIE_DETAILS_API_KEY } : undefined;
-  const response = await fetch(url, { headers, signal });
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload.movies)) {
+    return payload.movies;
+  }
+
+  if (payload.movie && typeof payload.movie === 'object') {
+    return payload.movie;
+  }
+
+  return payload;
+};
+
+const buildMovieDetailsUrl = (baseUrl, imdbId) => {
+  if (!baseUrl || !imdbId) {
+    return null;
+  }
+
+  if (baseUrl.includes('{imdbId}')) {
+    return baseUrl.replace('{imdbId}', encodeURIComponent(imdbId));
+  }
+
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${separator}imdbId=${encodeURIComponent(imdbId)}`;
+};
+
+const fetchMovieDetails = async (imdbId, signal) => {
+  const url = buildMovieDetailsUrl(MOVIE_DETAILS_API_URL, imdbId);
+  if (!url) {
+    return null;
+  }
+
+  const response = await fetch(url, { headers: buildMovieDetailsHeaders(), signal });
   if (!response.ok) {
     throw new Error(`Movie details API returned ${response.status}`);
   }
 
-  return response.json();
+  const payload = await response.json();
+  return parseMovieDetailsPayload(payload);
 };
 
 const EPSILON = 0.0001;
@@ -212,23 +262,23 @@ function App() {
     const controller = new AbortController();
 
     const loadDetails = async () => {
-      const updates = await Promise.all(
-        baseMovies.map(async (movie) => {
-          if (!movie.imdbId) {
-            return movie;
-          }
+      const updates = [...baseMovies];
 
-          try {
-            const apiMovie = await fetchMovieDetails(movie.imdbId, controller.signal);
-            return mergeMovieDetails(movie, apiMovie);
-          } catch (error) {
-            if (error?.name !== 'AbortError') {
-              console.warn(`Could not load details for ${movie.imdbId}`, error);
-            }
-            return movie;
+      for (let index = 0; index < baseMovies.length; index += 1) {
+        const movie = baseMovies[index];
+        if (!movie.imdbId || controller.signal.aborted) {
+          continue;
+        }
+
+        try {
+          const apiMovie = await fetchMovieDetails(movie.imdbId, controller.signal);
+          updates[index] = mergeMovieDetails(movie, apiMovie);
+        } catch (error) {
+          if (error?.name !== 'AbortError') {
+            console.warn(`Could not load details for ${movie.imdbId}`, error);
           }
-        })
-      );
+        }
+      }
 
       if (!controller.signal.aborted) {
         setMovies(updates);
