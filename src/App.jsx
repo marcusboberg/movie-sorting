@@ -28,6 +28,7 @@ function normalizeMovie(movie, index) {
   return {
     id,
     order,
+    imdbId: typeof movie?.imdbId === 'string' ? movie.imdbId : null,
     title: movie?.title ?? 'Untitled',
     posterUrl: localPoster ?? movie?.image ?? movie?.posterUrl ?? null,
     runtimeMinutes,
@@ -47,6 +48,127 @@ function normalizeMovie(movie, index) {
       : [],
   };
 }
+
+const MOVIE_DETAILS_API_URL =
+  import.meta.env.VITE_MOVIE_DETAILS_API_URL ??
+  import.meta.env.VITE_MOVIE_API_URL ??
+  import.meta.env.VITE_API_URL ??
+  null;
+const MOVIE_DETAILS_API_KEY =
+  import.meta.env.VITE_MOVIE_DETAILS_API_KEY ?? import.meta.env.VITE_MOVIE_API_KEY ?? import.meta.env.VITE_API_KEY ?? null;
+const MOVIE_DETAILS_AUTH_TOKEN =
+  import.meta.env.VITE_MOVIE_DETAILS_AUTH_TOKEN ?? import.meta.env.VITE_MOVIE_API_AUTH_TOKEN ?? null;
+
+const toStringList = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const mergeMovieDetails = (baseMovie, apiMovie) => {
+  if (!apiMovie) {
+    return baseMovie;
+  }
+
+  const runtimeMinutes = Number.isFinite(apiMovie?.runtime)
+    ? apiMovie.runtime
+    : Number.isFinite(apiMovie?.runtimeMinutes)
+      ? apiMovie.runtimeMinutes
+      : baseMovie.runtimeMinutes;
+
+  const releaseYear = apiMovie?.year ?? apiMovie?.releaseYear ?? baseMovie.releaseYear;
+  const overview =
+    (typeof apiMovie?.description === 'string' && apiMovie.description.trim()) ||
+    (typeof apiMovie?.overview === 'string' && apiMovie.overview.trim()) ||
+    baseMovie.overview;
+
+  const genres = toStringList(apiMovie?.genres);
+  const cast = toStringList(apiMovie?.cast);
+
+  return {
+    ...baseMovie,
+    title: typeof apiMovie?.title === 'string' && apiMovie.title.trim() ? apiMovie.title.trim() : baseMovie.title,
+    posterUrl:
+      (typeof apiMovie?.image === 'string' && apiMovie.image.trim()) ||
+      (typeof apiMovie?.posterUrl === 'string' && apiMovie.posterUrl.trim()) ||
+      baseMovie.posterUrl,
+    runtimeMinutes,
+    releaseYear: releaseYear != null ? String(releaseYear) : baseMovie.releaseYear,
+    overview,
+    genres: genres.length ? genres : baseMovie.genres,
+    cast: cast.length ? cast : baseMovie.cast,
+  };
+};
+
+const buildMovieDetailsHeaders = () => {
+  const headers = {};
+  if (MOVIE_DETAILS_API_KEY) {
+    headers['x-api-key'] = MOVIE_DETAILS_API_KEY;
+  }
+  if (MOVIE_DETAILS_AUTH_TOKEN) {
+    headers.Authorization = `Bearer ${MOVIE_DETAILS_AUTH_TOKEN}`;
+  }
+  return Object.keys(headers).length ? headers : undefined;
+};
+
+const parseMovieDetailsPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload.movies)) {
+    return payload.movies;
+  }
+
+  if (payload.movie && typeof payload.movie === 'object') {
+    return payload.movie;
+  }
+
+  return payload;
+};
+
+const buildMovieDetailsUrl = (baseUrl, imdbId) => {
+  if (!baseUrl || !imdbId) {
+    return null;
+  }
+
+  if (baseUrl.includes('{imdbId}')) {
+    return baseUrl.replace('{imdbId}', encodeURIComponent(imdbId));
+  }
+
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${separator}imdbId=${encodeURIComponent(imdbId)}`;
+};
+
+const fetchMovieDetails = async (imdbId, signal) => {
+  const url = buildMovieDetailsUrl(MOVIE_DETAILS_API_URL, imdbId);
+  if (!url) {
+    return null;
+  }
+
+  const response = await fetch(url, { headers: buildMovieDetailsHeaders(), signal });
+  if (!response.ok) {
+    throw new Error(`Movie details API returned ${response.status}`);
+  }
+
+  const payload = await response.json();
+  return parseMovieDetailsPayload(payload);
+};
 
 const EPSILON = 0.0001;
 const clampScore = (value) => Math.min(10, Math.max(0, Math.round(value * 10) / 10));
@@ -115,7 +237,7 @@ const blendWithThemeFallback = (red, green, blue, mix = 0.25) => {
 };
 
 function App() {
-  const movies = useMemo(() => {
+  const baseMovies = useMemo(() => {
     if (!Array.isArray(rawMovies)) {
       return [];
     }
@@ -126,6 +248,50 @@ function App() {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(({ order, ...movie }) => movie);
   }, []);
+  const [movies, setMovies] = useState(baseMovies);
+
+  useEffect(() => {
+    setMovies(baseMovies);
+  }, [baseMovies]);
+
+  useEffect(() => {
+    if (!MOVIE_DETAILS_API_URL || !baseMovies.length) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    const loadDetails = async () => {
+      const updates = [...baseMovies];
+
+      for (let index = 0; index < baseMovies.length; index += 1) {
+        const movie = baseMovies[index];
+        if (!movie.imdbId || controller.signal.aborted) {
+          continue;
+        }
+
+        try {
+          const apiMovie = await fetchMovieDetails(movie.imdbId, controller.signal);
+          updates[index] = mergeMovieDetails(movie, apiMovie);
+        } catch (error) {
+          if (error?.name !== 'AbortError') {
+            console.warn(`Could not load details for ${movie.imdbId}`, error);
+          }
+        }
+      }
+
+      if (!controller.signal.aborted) {
+        setMovies(updates);
+      }
+    };
+
+    void loadDetails();
+
+    return () => {
+      controller.abort();
+    };
+  }, [baseMovies]);
+
   const emptyRatings = useMemo(
     () =>
       movies.reduce((accumulator, movie) => {
