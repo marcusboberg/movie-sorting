@@ -26,6 +26,16 @@ under **Settings → Secrets and variables → Actions**:
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_APP_ID`
 
+### Optional movie metadata API
+
+If you have your own API with richer movie metadata, the app can fetch and merge that data at runtime (based on each movie's
+`imdbId`). Configure the following optional environment variables:
+
+- `VITE_MOVIE_DETAILS_API_URL` – base URL to your endpoint (the app appends `?imdbId=tt...`)
+- `VITE_MOVIE_DETAILS_API_KEY` – sent as `x-api-key` header when set
+
+If these variables are not configured, the app continues using only local data from `src/movies.json`.
+
 The workflow defined in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) exports the secrets as environment
 variables so the Firebase configuration is baked into the production bundle without relying on a checked-in `.env` file.
 During local development you can create a `./.env.local` with the same variables if needed – it is ignored by Git.
