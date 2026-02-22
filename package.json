@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "movies:sync-metadata": "node scripts/update-movies-metadata.mjs"
   },
   "dependencies": {
     "firebase": "^10.12.3",

@@ -43,6 +43,38 @@ The workflow defined in [`.github/workflows/deploy.yml`](.github/workflows/deplo
 variables so the Firebase configuration is baked into the production bundle without relying on a checked-in `.env` file.
 During local development you can create a `./.env.local` with the same variables if needed – it is ignored by Git.
 
+
+### Sync local movie metadata for statistik/wrapped
+
+`src/movies.json` can now store richer fields used for fun stats in wrapped (e.g. oldest movie, biggest difference vs IMDb, most/least expensive):
+
+- `imdbRating`, `imdbVotes`, `metascore`
+- `budget`, `revenue`, `boxOffice`
+- `released`, `country`, `language`, `awards`, `genres`, `cast`
+
+Run this command to (re)sync all movies from your configured movie details API:
+
+```bash
+npm run movies:sync-metadata
+```
+
+The sync script supports two sources:
+
+- **Generic details API** (same env vars as runtime app): `VITE_MOVIE_DETAILS_API_URL` + optional key/token fallbacks.
+- **TMDB direct** (when no generic API URL is set):
+  - `VITE_TMDB_API_TOKEN` (Bearer token, recommended) **or** `VITE_TMDB_API_KEY`
+  - optional `VITE_TMDB_API_BASE_URL` (defaults to `https://api.themoviedb.org/3`)
+
+If you want TMDB metadata available in GitHub Actions builds, add these repository secrets:
+
+- `VITE_TMDB_API_TOKEN` (recommended)
+- `VITE_TMDB_API_KEY` (optional fallback)
+- `VITE_TMDB_API_BASE_URL` (optional)
+
+For TMDB, the script resolves each `imdbId` via `/find/{external_id}` and then fetches `/movie/{id}?append_to_response=credits` to fill genres, cast, ratings/votes, budget/revenue and release metadata.
+
+If neither source is configured, the script still normalizes `movies.json` and ensures all metadata keys exist so future updates are easy.
+
 ## Build for production
 
 ```bash
