@@ -452,6 +452,18 @@ p {
   color: rgba(255, 255, 255, 0.95);
 }
 
+.overview-modes-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0 12px;
+}
+
+.overview-modes-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .overview-tabs {
   display: inline-flex;
   background: rgba(12, 12, 16, 0.76);
@@ -459,6 +471,7 @@ p {
   padding: 6px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  min-width: max-content;
 }
 
 .overview-tab {
