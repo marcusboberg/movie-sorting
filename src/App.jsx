@@ -207,6 +207,13 @@ const sortOptions = [
   { value: 'score', label: 'Score' },
 ];
 
+const overviewModeOptions = [
+  { value: 'grid', label: 'Affischer' },
+  { value: 'compare', label: 'Jämför' },
+  { value: 'wrapped', label: 'Wrapped' },
+  { value: 'stats', label: 'Statistik' },
+];
+
 const USER_OPTIONS = [...USERNAMES];
 const USER_STORAGE_KEY = 'movie-sorting.activeUser';
 const THEME_COLOR_FALLBACK = '#040404';
@@ -1509,6 +1516,14 @@ function App() {
     setIsUserPickerOpen(false);
   }, [username]);
 
+  const handleOverviewModeChange = useCallback((mode) => {
+    setOverviewMode(mode);
+
+    if (mode === 'wrapped') {
+      setWrappedIndex(0);
+    }
+  }, []);
+
   return (
     <div
       className={`app-shell ${isOverviewOpen ? 'app-shell--overview' : 'app-shell--focused'}`}
@@ -1570,6 +1585,22 @@ function App() {
         >
           {isOverviewOpen ? (
             <div className="overview-content">
+              <div className="overview-modes-scroll" role="tablist" aria-label="Visningsläge i översikt">
+                <div className="overview-tabs">
+                  {overviewModeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={overviewMode === option.value}
+                      className={`overview-tab ${overviewMode === option.value ? 'overview-tab--active' : ''}`}
+                      onClick={() => handleOverviewModeChange(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {overviewMode === 'grid' ? (
                 <div className="overview-grid">
                   {overviewMovies.map(({ movie, index: movieIndex, ratingValue, hasScore }) => {
@@ -1894,31 +1925,28 @@ function App() {
                   <button
                     type="button"
                     className={`settings-chip ${overviewMode === 'grid' ? 'settings-chip--active' : ''}`}
-                    onClick={() => setOverviewMode('grid')}
+                    onClick={() => handleOverviewModeChange('grid')}
                   >
                     Affischer
                   </button>
                   <button
                     type="button"
                     className={`settings-chip ${overviewMode === 'compare' ? 'settings-chip--active' : ''}`}
-                    onClick={() => setOverviewMode('compare')}
+                    onClick={() => handleOverviewModeChange('compare')}
                   >
                     Jämför
                   </button>
                   <button
                     type="button"
                     className={`settings-chip ${overviewMode === 'wrapped' ? 'settings-chip--active' : ''}`}
-                    onClick={() => {
-                      setOverviewMode('wrapped');
-                      setWrappedIndex(0);
-                    }}
+                    onClick={() => handleOverviewModeChange('wrapped')}
                   >
                     Wrapped
                   </button>
                   <button
                     type="button"
                     className={`settings-chip ${overviewMode === 'stats' ? 'settings-chip--active' : ''}`}
-                    onClick={() => setOverviewMode('stats')}
+                    onClick={() => handleOverviewModeChange('stats')}
                   >
                     Statistik
                   </button>
