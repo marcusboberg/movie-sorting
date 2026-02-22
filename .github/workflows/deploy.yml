@@ -24,9 +24,9 @@ jobs:
       VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
       VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
       VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-      VITE_TMDB_API_TOKEN: ${{ secrets.VITE_TMDB_API_TOKEN }}
-      VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
-      VITE_TMDB_API_BASE_URL: ${{ secrets.VITE_TMDB_API_BASE_URL }}
+      VITE_TMDB_API_TOKEN: ${{ secrets.VITE_TMDB_API_TOKEN || secrets.TMDB_API_TOKEN }}
+      VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY || secrets.TMDB_API_KEY }}
+      VITE_TMDB_API_BASE_URL: ${{ secrets.VITE_TMDB_API_BASE_URL || secrets.TMDB_API_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +40,7 @@ jobs:
           cache: 'npm'
 
       - run: npm ci
+      - run: npm run movies:sync-metadata
       - run: npm run build
       - run: cp dist/index.html dist/404.html || copy dist\\index.html dist\\404.html
 
@@ -54,4 +55,3 @@ jobs:
       name: github-pages
     steps:
       - uses: actions/deploy-pages@v4
-
