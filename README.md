@@ -65,6 +65,12 @@ The sync script supports two sources:
   - `VITE_TMDB_API_TOKEN` (Bearer token, recommended) **or** `VITE_TMDB_API_KEY`
   - optional `VITE_TMDB_API_BASE_URL` (defaults to `https://api.themoviedb.org/3`)
 
+If you want TMDB metadata available in GitHub Actions builds, add these repository secrets:
+
+- `VITE_TMDB_API_TOKEN` (recommended)
+- `VITE_TMDB_API_KEY` (optional fallback)
+- `VITE_TMDB_API_BASE_URL` (optional)
+
 For TMDB, the script resolves each `imdbId` via `/find/{external_id}` and then fetches `/movie/{id}?append_to_response=credits` to fill genres, cast, ratings/votes, budget/revenue and release metadata.
 
 If neither source is configured, the script still normalizes `movies.json` and ensures all metadata keys exist so future updates are easy.
