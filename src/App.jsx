@@ -68,6 +68,9 @@ const MOVIE_DETAILS_API_KEY =
   import.meta.env.VITE_MOVIE_DETAILS_API_KEY ?? import.meta.env.VITE_MOVIE_API_KEY ?? import.meta.env.VITE_API_KEY ?? null;
 const MOVIE_DETAILS_AUTH_TOKEN =
   import.meta.env.VITE_MOVIE_DETAILS_AUTH_TOKEN ?? import.meta.env.VITE_MOVIE_API_AUTH_TOKEN ?? null;
+const TMDB_API_BASE_URL = import.meta.env.VITE_TMDB_API_BASE_URL ?? 'https://api.themoviedb.org/3';
+const TMDB_API_TOKEN = import.meta.env.VITE_TMDB_API_TOKEN ?? null;
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY ?? null;
 
 const toStringList = (value) => {
   if (Array.isArray(value)) {
@@ -164,6 +167,29 @@ const buildMovieDetailsHeaders = () => {
   return Object.keys(headers).length ? headers : undefined;
 };
 
+const buildTmdbHeaders = () => {
+  if (!TMDB_API_TOKEN) {
+    return undefined;
+  }
+
+  return {
+    Authorization: `Bearer ${TMDB_API_TOKEN}`,
+  };
+};
+
+const buildTmdbUrl = (path, params = {}) => {
+  const url = new URL(`${TMDB_API_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value != null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  if (TMDB_API_KEY) {
+    url.searchParams.set('api_key', TMDB_API_KEY);
+  }
+  return url.toString();
+};
+
 const parseMovieDetailsPayload = (payload) => {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -198,18 +224,85 @@ const buildMovieDetailsUrl = (baseUrl, imdbId) => {
 };
 
 const fetchMovieDetails = async (imdbId, signal) => {
-  const url = buildMovieDetailsUrl(MOVIE_DETAILS_API_URL, imdbId);
-  if (!url) {
+  if (MOVIE_DETAILS_API_URL) {
+    const url = buildMovieDetailsUrl(MOVIE_DETAILS_API_URL, imdbId);
+    if (!url) {
+      return null;
+    }
+
+    const response = await fetch(url, { headers: buildMovieDetailsHeaders(), signal });
+    if (!response.ok) {
+      throw new Error(`Movie details API returned ${response.status}`);
+    }
+
+    const payload = await response.json();
+    return parseMovieDetailsPayload(payload);
+  }
+
+  if (!TMDB_API_TOKEN && !TMDB_API_KEY) {
     return null;
   }
 
-  const response = await fetch(url, { headers: buildMovieDetailsHeaders(), signal });
-  if (!response.ok) {
-    throw new Error(`Movie details API returned ${response.status}`);
+  const findResponse = await fetch(
+    buildTmdbUrl(`/find/${encodeURIComponent(imdbId)}`, { external_source: 'imdb_id' }),
+    { headers: buildTmdbHeaders(), signal }
+  );
+
+  if (!findResponse.ok) {
+    throw new Error(`TMDB find endpoint returned ${findResponse.status}`);
   }
 
-  const payload = await response.json();
-  return parseMovieDetailsPayload(payload);
+  const findPayload = await findResponse.json();
+  const tmdbMovie = Array.isArray(findPayload?.movie_results) ? findPayload.movie_results[0] : null;
+  if (!tmdbMovie?.id) {
+    return null;
+  }
+
+  const detailsResponse = await fetch(
+    buildTmdbUrl(`/movie/${tmdbMovie.id}`, { append_to_response: 'credits' }),
+    { headers: buildTmdbHeaders(), signal }
+  );
+
+  if (!detailsResponse.ok) {
+    throw new Error(`TMDB movie endpoint returned ${detailsResponse.status}`);
+  }
+
+  const details = await detailsResponse.json();
+  const spokenLanguages = Array.isArray(details?.spoken_languages)
+    ? details.spoken_languages
+        .map((item) => item?.english_name ?? item?.name)
+        .filter(Boolean)
+        .join(', ')
+    : null;
+  const productionCountries = Array.isArray(details?.production_countries)
+    ? details.production_countries
+        .map((item) => item?.name)
+        .filter(Boolean)
+        .join(', ')
+    : null;
+
+  return {
+    title: details?.title,
+    overview: details?.overview,
+    runtime: details?.runtime,
+    releaseYear: typeof details?.release_date === 'string' ? details.release_date.slice(0, 4) : null,
+    released: details?.release_date ?? null,
+    image: typeof details?.poster_path === 'string' ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : null,
+    genres: Array.isArray(details?.genres) ? details.genres.map((genre) => genre?.name).filter(Boolean) : [],
+    cast: Array.isArray(details?.credits?.cast)
+      ? details.credits.cast
+          .slice(0, 10)
+          .map((actor) => actor?.name)
+          .filter(Boolean)
+      : [],
+    vote_average: details?.vote_average,
+    vote_count: details?.vote_count,
+    budget: details?.budget,
+    revenue: details?.revenue,
+    boxOffice: details?.revenue,
+    language: spokenLanguages,
+    country: productionCountries,
+  };
 };
 
 const EPSILON = 0.0001;
@@ -304,7 +397,7 @@ function App() {
   }, [baseMovies]);
 
   useEffect(() => {
-    if (!MOVIE_DETAILS_API_URL || !baseMovies.length) {
+    if ((!MOVIE_DETAILS_API_URL && !TMDB_API_TOKEN && !TMDB_API_KEY) || !baseMovies.length) {
       return undefined;
     }
 
