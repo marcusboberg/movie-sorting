@@ -46,6 +46,16 @@ function normalizeMovie(movie, index) {
     cast: Array.isArray(movie?.cast)
       ? movie.cast.map((actor) => (typeof actor === 'string' ? actor.trim() : '')).filter(Boolean)
       : [],
+    imdbRating: Number.isFinite(movie?.imdbRating) ? movie.imdbRating : null,
+    imdbVotes: Number.isFinite(movie?.imdbVotes) ? movie.imdbVotes : null,
+    metascore: Number.isFinite(movie?.metascore) ? movie.metascore : null,
+    budget: Number.isFinite(movie?.budget) ? movie.budget : null,
+    revenue: Number.isFinite(movie?.revenue) ? movie.revenue : null,
+    boxOffice: Number.isFinite(movie?.boxOffice) ? movie.boxOffice : null,
+    released: typeof movie?.released === 'string' ? movie.released : null,
+    country: typeof movie?.country === 'string' ? movie.country : null,
+    language: typeof movie?.language === 'string' ? movie.language : null,
+    awards: typeof movie?.awards === 'string' ? movie.awards : null,
   };
 }
 
@@ -62,7 +72,11 @@ const MOVIE_DETAILS_AUTH_TOKEN =
 const toStringList = (value) => {
   if (Array.isArray(value)) {
     return value
-      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .map((entry) => {
+        if (typeof entry === 'string') return entry.trim();
+        if (entry && typeof entry === 'object' && typeof entry.name === 'string') return entry.name.trim();
+        return '';
+      })
       .filter(Boolean);
   }
 
@@ -76,6 +90,24 @@ const toStringList = (value) => {
   return [];
 };
 
+const toFiniteNumber = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[^\d.-]/g, '');
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
 const mergeMovieDetails = (baseMovie, apiMovie) => {
   if (!apiMovie) {
     return baseMovie;
@@ -87,7 +119,7 @@ const mergeMovieDetails = (baseMovie, apiMovie) => {
       ? apiMovie.runtimeMinutes
       : baseMovie.runtimeMinutes;
 
-  const releaseYear = apiMovie?.year ?? apiMovie?.releaseYear ?? baseMovie.releaseYear;
+  const releaseYear = apiMovie?.year ?? apiMovie?.releaseYear ?? (typeof apiMovie?.release_date === 'string' ? apiMovie.release_date.slice(0, 4) : null) ?? baseMovie.releaseYear;
   const overview =
     (typeof apiMovie?.description === 'string' && apiMovie.description.trim()) ||
     (typeof apiMovie?.overview === 'string' && apiMovie.overview.trim()) ||
@@ -108,6 +140,16 @@ const mergeMovieDetails = (baseMovie, apiMovie) => {
     overview,
     genres: genres.length ? genres : baseMovie.genres,
     cast: cast.length ? cast : baseMovie.cast,
+    imdbRating: toFiniteNumber(apiMovie?.imdbRating ?? apiMovie?.vote_average) ?? baseMovie.imdbRating,
+    imdbVotes: toFiniteNumber(apiMovie?.imdbVotes ?? apiMovie?.vote_count) ?? baseMovie.imdbVotes,
+    metascore: toFiniteNumber(apiMovie?.metascore) ?? baseMovie.metascore,
+    budget: toFiniteNumber(apiMovie?.budget) ?? baseMovie.budget,
+    revenue: toFiniteNumber(apiMovie?.revenue ?? apiMovie?.boxOffice) ?? baseMovie.revenue,
+    boxOffice: toFiniteNumber(apiMovie?.boxOffice) ?? baseMovie.boxOffice,
+    released: typeof apiMovie?.released === 'string' ? apiMovie.released : typeof apiMovie?.release_date === 'string' ? apiMovie.release_date : baseMovie.released,
+    country: typeof apiMovie?.country === 'string' ? apiMovie.country : baseMovie.country,
+    language: typeof apiMovie?.language === 'string' ? apiMovie.language : baseMovie.language,
+    awards: typeof apiMovie?.awards === 'string' ? apiMovie.awards : baseMovie.awards,
   };
 };
 
@@ -1420,6 +1462,30 @@ function App() {
       return candidates[0] ?? null;
     }).filter(Boolean);
 
+    const metadataMovies = movies.filter((movie) => movie && Number.isFinite(movie.imdbRating));
+
+    const oldestMovie = [...movies]
+      .filter((movie) => Number.isFinite(Number.parseInt(movie.releaseYear, 10)))
+      .sort((a, b) => Number.parseInt(a.releaseYear, 10) - Number.parseInt(b.releaseYear, 10))[0] ?? null;
+
+    const mostExpensiveMovie = [...movies]
+      .filter((movie) => Number.isFinite(movie.budget) && movie.budget > 0)
+      .sort((a, b) => (b.budget ?? 0) - (a.budget ?? 0))[0] ?? null;
+
+    const cheapestMovie = [...movies]
+      .filter((movie) => Number.isFinite(movie.budget) && movie.budget > 0)
+      .sort((a, b) => (a.budget ?? 0) - (b.budget ?? 0))[0] ?? null;
+
+    const biggestImdbGap = compareRows
+      .filter((row) => row.ratedValues.length >= 2 && Number.isFinite(row.movie.imdbRating))
+      .map((row) => ({
+        movie: row.movie,
+        average: row.average,
+        imdbRating: row.movie.imdbRating,
+        delta: clampScore(Math.abs(row.average - row.movie.imdbRating)),
+      }))
+      .sort((a, b) => b.delta - a.delta)[0] ?? null;
+
     return {
       topThree: rankedByAverage.slice(0, 3),
       mostDivisive,
@@ -1429,7 +1495,11 @@ function App() {
       hotTakes,
       topGenreByUser,
       topActorByUser,
-      hasMetadata: movies.some((movie) => movie.genres.length > 0 || movie.cast.length > 0),
+      oldestMovie,
+      mostExpensiveMovie,
+      cheapestMovie,
+      biggestImdbGap,
+      hasMetadata: metadataMovies.length > 0 || movies.some((movie) => movie.genres.length > 0 || movie.cast.length > 0),
     };
   }, [allRatings, compareRows, movies, normalizeRating]);
 
@@ -1461,6 +1531,31 @@ function App() {
         kicker: 'Drama alert',
         title: mostSplit ? `${mostSplit.movie.title} delade er mest` : 'Ingen stor splittring än',
         subtitle: mostSplit ? `Skillnad ${mostSplit.spread.toFixed(1)} poäng mellan högsta och lägsta betyg.` : 'När alla tre har röstat visas mest splittrade film här.',
+      },
+      {
+        key: 'imdb-gap',
+        kicker: 'IMDb vs ni',
+        title: stats.biggestImdbGap ? `${stats.biggestImdbGap.movie.title} sticker ut mest` : 'Ingen IMDb-jämförelse än',
+        subtitle: stats.biggestImdbGap
+          ? `Ert snitt ${stats.biggestImdbGap.average.toFixed(1)} vs IMDb ${stats.biggestImdbGap.imdbRating.toFixed(1)} (Δ ${stats.biggestImdbGap.delta.toFixed(1)}).`
+          : 'Fyll på imdbRating i metadata för att få denna insight.',
+      },
+      {
+        key: 'oldest',
+        kicker: 'Throwback',
+        title: stats.oldestMovie ? `Äldst i listan: ${stats.oldestMovie.title}` : 'Ingen årtalsdata än',
+        subtitle: stats.oldestMovie
+          ? `Släppt ${stats.oldestMovie.releaseYear}.`
+          : 'Lägg till releaseYear för filmerna för denna statistik.',
+      },
+      {
+        key: 'budget',
+        kicker: 'Budget battle',
+        title: stats.mostExpensiveMovie ? `Dyrast: ${stats.mostExpensiveMovie.title}` : 'Ingen budgetdata än',
+        subtitle:
+          stats.mostExpensiveMovie && stats.cheapestMovie
+            ? `${stats.mostExpensiveMovie.budget.toLocaleString('sv-SE')} USD vs billigast ${stats.cheapestMovie.title} (${stats.cheapestMovie.budget.toLocaleString('sv-SE')} USD).`
+            : 'Lägg in budget i metadata för att jämföra dyrast/billigast.',
       },
       {
         key: 'taste',
@@ -1781,6 +1876,28 @@ function App() {
                           <strong>Δ {entry.delta.toFixed(1)}</strong>
                         </li>
                       ))}
+                    </ul>
+                  </section>
+
+                  <section className="stats-card">
+                    <h3>Rolig fakta</h3>
+                    <ul>
+                      <li>
+                        <span>Äldst film</span>
+                        <strong>{stats.oldestMovie ? `${stats.oldestMovie.title} (${stats.oldestMovie.releaseYear})` : '—'}</strong>
+                      </li>
+                      <li>
+                        <span>Dyrast film (budget)</span>
+                        <strong>{stats.mostExpensiveMovie ? `${stats.mostExpensiveMovie.title}` : '—'}</strong>
+                      </li>
+                      <li>
+                        <span>Billigast film (budget)</span>
+                        <strong>{stats.cheapestMovie ? `${stats.cheapestMovie.title}` : '—'}</strong>
+                      </li>
+                      <li>
+                        <span>Störst gap mot IMDb</span>
+                        <strong>{stats.biggestImdbGap ? `${stats.biggestImdbGap.movie.title} (Δ ${stats.biggestImdbGap.delta.toFixed(1)})` : '—'}</strong>
+                      </li>
                     </ul>
                   </section>
 
