@@ -1755,7 +1755,7 @@ function App() {
 
                   <section className="stats-card">
                     <h3>Favoritgenre per person</h3>
-                    {stats.hasMetadata ? (
+                    {stats.topGenreByUser.length ? (
                       <ul>
                         {stats.topGenreByUser.map((entry) => (
                           <li key={`${entry.user}-${entry.label}`}>
@@ -1765,13 +1765,13 @@ function App() {
                         ))}
                       </ul>
                     ) : (
-                      <p>Lägg till genres i movies.json för denna analys.</p>
+                      <p>Inte tillräckligt med genredata ännu.</p>
                     )}
                   </section>
 
                   <section className="stats-card">
                     <h3>Favoritskådespelare per person</h3>
-                    {stats.hasMetadata ? (
+                    {stats.topActorByUser.length ? (
                       <ul>
                         {stats.topActorByUser.map((entry) => (
                           <li key={`${entry.user}-${entry.label}`}>
@@ -1781,7 +1781,7 @@ function App() {
                         ))}
                       </ul>
                     ) : (
-                      <p>Lägg till cast i movies.json för denna analys.</p>
+                      <p>Inte tillräckligt med skådespelardata ännu.</p>
                     )}
                   </section>
                 </div>
