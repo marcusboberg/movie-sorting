@@ -13,16 +13,30 @@ import {
 } from './lib/ratings';
 import './App.css';
 
+const toFiniteNumber = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[^\d.-]/g, '');
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
 function normalizeMovie(movie, index) {
   const fallbackOrder = index + 1;
   const order = Number.isFinite(movie?.order) ? movie.order : fallbackOrder;
   const id = movie?.id ?? movie?.imdbId ?? order ?? fallbackOrder;
   const localPoster = typeof movie?.imdbId === 'string' ? `/posters/${movie.imdbId}.jpg` : null;
-  const runtimeMinutes = Number.isFinite(movie?.runtime)
-    ? movie.runtime
-    : Number.isFinite(movie?.runtimeMinutes)
-      ? movie.runtimeMinutes
-      : null;
+  const runtimeMinutes = toFiniteNumber(movie?.runtime) ?? toFiniteNumber(movie?.runtimeMinutes);
   const releaseYear = movie?.year ?? movie?.releaseYear ?? '—';
 
   return {
@@ -46,12 +60,12 @@ function normalizeMovie(movie, index) {
     cast: Array.isArray(movie?.cast)
       ? movie.cast.map((actor) => (typeof actor === 'string' ? actor.trim() : '')).filter(Boolean)
       : [],
-    imdbRating: Number.isFinite(movie?.imdbRating) ? movie.imdbRating : null,
-    imdbVotes: Number.isFinite(movie?.imdbVotes) ? movie.imdbVotes : null,
-    metascore: Number.isFinite(movie?.metascore) ? movie.metascore : null,
-    budget: Number.isFinite(movie?.budget) ? movie.budget : null,
-    revenue: Number.isFinite(movie?.revenue) ? movie.revenue : null,
-    boxOffice: Number.isFinite(movie?.boxOffice) ? movie.boxOffice : null,
+    imdbRating: toFiniteNumber(movie?.imdbRating),
+    imdbVotes: toFiniteNumber(movie?.imdbVotes),
+    metascore: toFiniteNumber(movie?.metascore),
+    budget: toFiniteNumber(movie?.budget),
+    revenue: toFiniteNumber(movie?.revenue),
+    boxOffice: toFiniteNumber(movie?.boxOffice),
     released: typeof movie?.released === 'string' ? movie.released : null,
     country: typeof movie?.country === 'string' ? movie.country : null,
     language: typeof movie?.language === 'string' ? movie.language : null,
@@ -93,34 +107,12 @@ const toStringList = (value) => {
   return [];
 };
 
-const toFiniteNumber = (value) => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.replace(/[^\d.-]/g, '');
-    if (!normalized) {
-      return null;
-    }
-
-    const parsed = Number.parseFloat(normalized);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-};
-
 const mergeMovieDetails = (baseMovie, apiMovie) => {
   if (!apiMovie) {
     return baseMovie;
   }
 
-  const runtimeMinutes = Number.isFinite(apiMovie?.runtime)
-    ? apiMovie.runtime
-    : Number.isFinite(apiMovie?.runtimeMinutes)
-      ? apiMovie.runtimeMinutes
-      : baseMovie.runtimeMinutes;
+  const runtimeMinutes = toFiniteNumber(apiMovie?.runtime) ?? toFiniteNumber(apiMovie?.runtimeMinutes) ?? baseMovie.runtimeMinutes;
 
   const releaseYear = apiMovie?.year ?? apiMovie?.releaseYear ?? (typeof apiMovie?.release_date === 'string' ? apiMovie.release_date.slice(0, 4) : null) ?? baseMovie.releaseYear;
   const overview =
